@@ -1,0 +1,37 @@
+name: Ansible
+
+on:
+  workflow_dispatch:
+
+env:
+  DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+  DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+
+jobs:
+  ansible:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Ansible
+        run: pip install ansible-core
+
+      - name: Show Ansible version
+        run: ansible --version
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+
+      - name: Run Ansible
+        run: |
+          ansible-playbook \
+            -i "${DEPLOY_HOST}," \
+            -u "${DEPLOY_USER}" \
+            --private-key ~/.ssh/deploy_key \
+            --ssh-common-args="-o StrictHostKeyChecking=accept-new" \
+            ansible/playbook.yml

@@ -1,0 +1,25 @@
+# Runtime configuration and secrets
+.env
+.env.*
+!.env.example
+secrets/
+ansible/vault_password*
+*.pem
+*.key
+
+# Persistent application state kept outside the repository
+data/
+runtime/
+logs/
+backups/
+
+# Ansible temporary files
+*.retry
+
+# Local editor and operating-system files
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+.kilo

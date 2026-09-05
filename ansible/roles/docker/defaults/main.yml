@@ -1,0 +1,5 @@
+---
+
+lazydocker_version: "0.25.2"
+lazydocker_binary_path: /usr/local/bin/lazydocker
+lazydocker_checksum: "sha256:0d9dbfc26068b218e7ed84b104748cadc6e3cf733c0afd35465306fb39b9523c"

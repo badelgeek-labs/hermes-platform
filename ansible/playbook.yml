@@ -1,0 +1,20 @@
+- name: Inspect deployment host
+  hosts: all
+
+  tasks:
+    - name: Check Ansible connectivity
+      ansible.builtin.ping:
+
+    - name: Show remote hostname
+      ansible.builtin.debug:
+        msg: 'Connected to {{ ansible_facts["hostname"] }}'
+
+    - name: Check privilege escalation
+      ansible.builtin.command: whoami
+      become: true
+      register: privilege_escalation_check
+      changed_when: false
+
+    - name: Detect Docker installation
+      ansible.builtin.include_role:
+        name: docker

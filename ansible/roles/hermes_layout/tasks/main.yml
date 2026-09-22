@@ -1,0 +1,56 @@
+---
+- name: Create Hermes system group
+  become: true
+  ansible.builtin.group:
+    name: "{{ hermes_group }}"
+    system: true
+    state: present
+
+- name: Create Hermes system user
+  become: true
+  ansible.builtin.user:
+    name: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Validate Hermes instance names
+  ansible.builtin.assert:
+    that:
+      - hermes_instances | length > 0
+      - item.name is match('^[a-z0-9]+(?:-[a-z0-9]+)*$')
+    fail_msg: >-
+      Each Hermes instance name must use lowercase letters, digits, and
+      single hyphens only.
+  loop: "{{ hermes_instances }}"
+  loop_control:
+    label: "{{ item.name | default('undefined') }}"
+
+- name: Validate unique Hermes instance names
+  ansible.builtin.assert:
+    that: >-
+      hermes_instances | map(attribute='name') | list | unique | length ==
+      hermes_instances | length
+    fail_msg: Hermes instance names must be unique.
+
+- name: Create Hermes shared directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ hermes_platform_root }}"
+    - "{{ hermes_data_root }}"
+    - "{{ hermes_backups_root }}"
+
+- name: Create Hermes instance layouts
+  ansible.builtin.include_tasks: instance.yml
+  loop: "{{ hermes_instances }}"
+  loop_control:
+    loop_var: hermes_instance
+    label: "{{ hermes_instance.name }}"

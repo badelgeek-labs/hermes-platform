@@ -1,0 +1,22 @@
+---
+- name: Create Hermes instance directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ hermes_platform_root }}/{{ hermes_instance.name }}"
+      owner: root
+      group: root
+      mode: "0755"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0700"
+    - path: "{{ hermes_backups_root }}/{{ hermes_instance.name }}"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0700"

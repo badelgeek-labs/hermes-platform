@@ -40,6 +40,19 @@ Le workflow est défini dans `.github/workflows/ansible.yml`. Il attend les
 variables GitHub `DEPLOY_HOST` et `DEPLOY_USER`, ainsi que le secret
 `DEPLOY_SSH_KEY`.
 
+## Chronologie de mise en place
+
+La documentation opérationnelle suit l'ordre réel de déploiement :
+
+1. configurer et valider le lanceur Ansible local ;
+2. créer le bot Discord privé ;
+3. connecter Hermes au compte ChatGPT/Codex ;
+4. préparer les données persistantes et le secret Discord ;
+5. déployer le gateway Pomo ;
+6. ajouter les procédures d'exploitation et de backup plus tard.
+
+Voir le plan détaillé : [`ACTION_PLAN.md`](ACTION_PLAN.md).
+
 ## Préconditions Docker
 
 Le rôle `ansible/roles/docker` vérifie que les commandes suivantes sont
@@ -81,19 +94,28 @@ porter un préfixe propre, par exemple `hermes-pomo`.
 
 ## Organisation cible sur la VM
 
-Cette arborescence est une convention cible ; elle ne doit être créée que par
-les futures tâches Ansible dédiées :
+Le rôle Ansible `hermes_layout` gère une liste d'instances. La configuration
+initiale contient uniquement `pomo` :
 
-```text
-/opt/hermes/platform/       # checkout de ce dépôt, propriétaire : deploy
-/etc/hermes/pomo.env        # secrets Pomo, root:root, mode 0600
-/var/lib/hermes/pomo/        # données persistantes de l'instance
-/var/backups/hermes/pomo/    # sauvegardes de l'instance
+```yaml
+hermes_instances:
+  - name: pomo
 ```
 
-Chaque future instance aura son propre fichier d'environnement et son propre
-répertoire de données. Les permissions exactes des données seront définies en
-fonction de l'utilisateur exécutant le conteneur concerné.
+Pour chaque `name`, le rôle crée l'arborescence suivante :
+
+```text
+/opt/hermes/<name>/          # définition Compose, propriétaire : root:root
+/var/lib/hermes/<name>/      # données et secrets, propriétaire : hermes:hermes
+/var/backups/hermes/<name>/  # sauvegardes, propriétaire : hermes:hermes
+```
+
+Le répertoire de plateforme est géré par Ansible avec les privilèges élevés.
+Le compte système `hermes`, sans accès SSH ni sudo, possède les données et
+sauvegardes. Chaque future instance aura son propre répertoire de données et
+son projet Compose `hermes-<name>`. Pour Pomo,
+`/var/lib/hermes/pomo/.env` et `auth.json` resteront hors Git avec des droits
+restreints. Le détail est documenté dans `ACTION_PLAN.md`.
 
 ## Exécution du playbook
 

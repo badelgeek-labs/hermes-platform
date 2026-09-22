@@ -18,3 +18,7 @@
     - name: Detect Docker installation
       ansible.builtin.include_role:
         name: docker
+
+    - name: Prepare Hermes host layout
+      ansible.builtin.include_role:
+        name: hermes_layout

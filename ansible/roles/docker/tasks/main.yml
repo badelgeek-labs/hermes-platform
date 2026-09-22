@@ -32,55 +32,17 @@
   failed_when: false
   check_mode: false
 
-- name: Report pending LazyDocker installation in check mode
+- name: Report LazyDocker status
   ansible.builtin.debug:
-    msg: "LazyDocker {{ lazydocker_version }} would be installed."
-  changed_when: true
-  when:
-    - ansible_check_mode
-    - lazydocker_check.rc != 0 or lazydocker_version not in lazydocker_check.stdout
+    msg: >-
+      LazyDocker {{ lazydocker_version }}
+      {{ 'will be installed.' if lazydocker_check.rc != 0 or lazydocker_version not in lazydocker_check.stdout else 'is available.' }}
+  changed_when: >-
+    ansible_check_mode and
+    (lazydocker_check.rc != 0 or lazydocker_version not in lazydocker_check.stdout)
 
 - name: Install LazyDocker
-  become: true
+  ansible.builtin.include_tasks: install_lazydocker.yml
   when:
     - not ansible_check_mode
     - lazydocker_check.rc != 0 or lazydocker_version not in lazydocker_check.stdout
-  block:
-    - name: Download LazyDocker release archive
-      ansible.builtin.get_url:
-        url: "https://github.com/jesseduffield/lazydocker/releases/download/v{{ lazydocker_version }}/lazydocker_{{ lazydocker_version }}_Linux_x86_64.tar.gz"
-        dest: /tmp/lazydocker.tar.gz
-        checksum: "{{ lazydocker_checksum }}"
-        mode: "0644"
-
-    - name: Extract LazyDocker binary
-      ansible.builtin.unarchive:
-        src: /tmp/lazydocker.tar.gz
-        dest: /usr/local/bin
-        remote_src: true
-        include:
-          - lazydocker
-
-    - name: Set LazyDocker binary permissions
-      ansible.builtin.file:
-        path: "{{ lazydocker_binary_path }}"
-        state: file
-        owner: root
-        group: root
-        mode: "0755"
-
-    - name: Verify installed LazyDocker version
-      ansible.builtin.command:
-        argv:
-          - "{{ lazydocker_binary_path }}"
-          - --version
-      register: lazydocker_installed_check
-      changed_when: false
-      failed_when: >-
-        lazydocker_installed_check.rc != 0 or
-        lazydocker_version not in lazydocker_installed_check.stdout
-
-    - name: Remove downloaded LazyDocker archive
-      ansible.builtin.file:
-        path: /tmp/lazydocker.tar.gz
-        state: absent

@@ -1,0 +1,10 @@
+---
+hermes_user: hermes
+hermes_group: hermes
+
+hermes_instances:
+  - name: pomo
+
+hermes_platform_root: /opt/hermes
+hermes_data_root: /var/lib/hermes
+hermes_backups_root: /var/backups/hermes

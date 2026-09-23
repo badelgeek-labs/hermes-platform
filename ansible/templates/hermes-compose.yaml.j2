@@ -1,0 +1,22 @@
+# Rendered by the deployment phase. Do not edit the rendered file on the VM.
+name: hermes-{{ hermes_instance.name }}
+
+services:
+  hermes:
+    # Hermes Agent v2026.9.14 multi-architecture index digest.
+    image: "nousresearch/hermes-agent@sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294"
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    env_file:
+      - "/var/lib/hermes/{{ hermes_instance.name }}/.env"
+    environment:
+      HERMES_UID: "{{ hermes_runtime_uid | mandatory }}"
+      HERMES_GID: "{{ hermes_runtime_gid | mandatory }}"
+    volumes:
+      - "/var/lib/hermes/{{ hermes_instance.name }}:/opt/data"
+    networks:
+      - hermes
+
+networks:
+  hermes:
+    name: "hermes-{{ hermes_instance.name }}-network"

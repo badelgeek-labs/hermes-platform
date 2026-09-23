@@ -47,8 +47,8 @@ Each action has independent nested statuses:
   `./ops/run-ansible-workflow.sh`.
   - [x] Repo
   - [x] VM
-- The dedicated `hermes` account plus Pomo data and backup directories are
-  present with the expected ownership and permissions.
+- The dedicated `hermes` account and Pomo layout are present with the expected
+  ownership and permissions.
   - [x] Repo
   - [x] VM
 
@@ -89,7 +89,7 @@ Suggested commit when this phase is complete: `chore: prepare deployment host`
 - Manage the Hermes host layout from `hermes_instances`, initially containing
   only `name: pomo`.
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 - Create a dedicated `hermes` system user and group:
   - no SSH login, interactive shell, or sudo access;
   - separate from `deploy`, which remains the SSH/Ansible account only.
@@ -99,7 +99,7 @@ Suggested commit when this phase is complete: `chore: prepare deployment host`
   deployment files, owned by `root:root` and writable only through Ansible
   `become`.
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 - Create `/var/lib/hermes/<name>/` for each instance's persistent Hermes data,
   `.env`, and OAuth credentials, owned by `hermes:hermes` with mode `0700`.
   - [x] Repo
@@ -115,74 +115,47 @@ Suggested commit when this phase is complete: `chore: prepare deployment host`
 
 Suggested commit when this phase is complete: `chore: prepare Hermes Pomo layout`
 
-## Phase 3 — Hermes runtime design
+## Phase 3 — Discord and runtime secrets
 
-- Use the official `nousresearch/hermes-agent` image.
-  - [x] Repo
-  - n/a VM
-- Pin the tested image by immutable digest before the first deployment.
-  - [ ] Repo
-  - [ ] VM
-- Derive each Compose project name as `hermes-<name>`; Pomo is therefore
-  `hermes-pomo`.
-  - [ ] Repo
-  - [ ] VM
-- Retrieve the `hermes` UID and GID while rendering the Compose definition and
-  use them for `HERMES_UID` and `HERMES_GID`; do not hard-code `deploy` UID/GID
-  `1000`.
-  - [ ] Repo
-  - [ ] VM
-- Use a dedicated Hermes network; never join `n8n_default`.
-  - [ ] Repo
-  - [ ] VM
-- Configure restart behavior and a health check where supported by Hermes.
-  - [ ] Repo
-  - [ ] VM
-- Mount only `/var/lib/hermes/<name>` at `/opt/data` for each instance's
-  persistent state.
-  - [x] Repo
-  - [ ] VM
-- Do not expose an inbound HTTP port initially; Discord uses outbound
-  connectivity.
-  - [x] Repo
-  - [ ] VM
-- Do not use `network_mode: host` or mount the Docker socket.
-  - [x] Repo
-  - [ ] VM
-- Confirm that no port, volume, network, container, or Compose project name
-  overlaps with n8n.
-  - [ ] Repo
-  - [ ] VM
-
-Suggested commit when this phase is complete: `feat: define Pomo Hermes runtime`
-
-## Phase 4 — Secrets and Discord
-
-- Use ChatGPT/Codex OAuth for the initial model provider; keep OpenRouter as a
-  fallback if the selected ChatGPT plan is not eligible.
-  - [x] Repo
-  - [ ] VM
-- Do not create `OPENROUTER_API_KEY` for the initial setup. ChatGPT/Codex OAuth
-  is completed later through `hermes model` → **ChatGPT or Codex Subscription**
-  using a browser device-login flow.
-  - [x] Repo
-  - n/a VM
-- Validate ChatGPT/Codex OAuth with the selected ChatGPT plan and complete the
-  one-time device login.
-  - [ ] Repo
-  - [ ] VM
 - Create and configure the Discord application/bot for Pomo manually:
-  - create an application named **Hermes Pomo** in the Discord Developer Portal;
-  - add the bot user and disable **Public Bot** for a private installation;
-  - enable **Message Content Intent** for free-form messages, but not Presence
-    or Server Members intents;
-  - generate an OAuth2 URL with `bot` and `applications.commands` scopes;
-  - grant only View Channels, Send Messages, and Read Message History;
-  - invite the bot only to the target server;
-  - enable Discord Developer Mode and copy the owner User ID, plus an optional
-    allowed Channel ID;
-  - save the bot token in a password manager only, never in Git or shell
-    history.
+  1. <https://discord.com/developers/applications>:
+     - [x] **New Application** → name: **Hermes Pomo** → **Create**.
+  2. **Settings** → **Bot**:
+     - [x] Select **Add Bot** and confirm, only if this button is shown.
+     - [x] **Public Bot**: off.
+     - [x] **Requires OAuth2 Code Grant**: off.
+  3. **Settings** → **Bot** → **Privileged Gateway Intents**:
+     - [x] **Message Content Intent**: on.
+     - [x] **Presence Intent**: off.
+     - [x] **Server Members Intent**: on.
+  4. **Settings** → **Bot** → token:
+     - [x] **Reset Token** / **Copy** → store it in a password manager only.
+     - [x] Never paste it into Git, a terminal, or chat.
+  5. **Settings** → **Installation**:
+     - [x] **Guild Install**: on.
+     - [x] **User Install**: off.
+     - [x] **Install Link**: **None** / **Aucune**.
+  6. **Settings** → **OAuth2** → **URL Generator**:
+     - [x] **OAuth2 Scopes**: `bot` and `applications.commands`.
+     - [x] **Guild Install**, if Discord asks for an installation type.
+     - [x] **Bot Permissions** → **General Channel Permissions** → **View
+           Channels**.
+     - [x] **Bot Permissions** → **Text Permissions** → **Send Messages** and
+           **Read Message History**.
+     - [x] **Bot Permissions** → **Text Permissions** → **Embed Links**, **Attach
+           Files**, **Send Messages in Threads**, and **Add Reactions**.
+     - [x] Verify **Administrator** and permissions other than the seven listed
+           above are unchecked.
+     - If the bot is already in the server, update its bot role through Discord
+       **Server Settings** → **Roles**; do not invite it again.
+     - [x] Copy the generated URL → open it → choose the target server →
+           **Authorize**.
+     - [x] Ensure the signed-in account has **Manage Server** on the target
+           server. If the list is empty: Discord **+** → **Create My Own**, or ask
+           a server administrator for that permission.
+  7. Discord client → **User Settings** → **Advanced**:
+     - [ ] **Developer Mode**: on.
+     - [ ] Right-click the owner account → **Copy User ID**.
   - [x] Repo
   - [ ] VM
 - Keep Discord application creation manual. It belongs to the Discord account
@@ -197,42 +170,103 @@ Suggested commit when this phase is complete: `feat: define Pomo Hermes runtime`
   - n/a VM
 - Add `DISCORD_BOT_TOKEN` as a GitHub Actions secret and write it with Ansible
   to `/var/lib/hermes/pomo/.env` without logging its value.
-  - [ ] Repo
+  - [x] Repo
   - [ ] VM
-- Configure `DISCORD_ALLOWED_USERS` and keep `DISCORD_ALLOW_ALL_USERS=false`.
-  - [ ] Repo
+- Keep each instance's identity outside the public repository. Use the GitHub
+  Actions repository-variable convention `HERMES_SOUL_<UPPERCASE_INSTANCE_NAME>`:
+  `HERMES_SOUL_POMO` for Pomo.
+  - [x] Repo
   - [ ] VM
-- Verify the future runtime `.env` contains only:
+- Render each instance identity to `/var/lib/hermes/<name>/SOUL.md`, owned by
+  `hermes:hermes` with mode `0600`, using `no_log: true`. The mounted file is
+  then `/opt/data/SOUL.md` inside the official container.
+  - [x] Repo
+  - [ ] VM
+- Apply runtime secrets and instance identities only through GitHub Actions.
+  The local Ansible launcher must not fetch GitHub variables or secrets, and
+  must not write `.env` or `SOUL.md`.
+  - [x] Repo
+  - n/a VM
+- Configure `DISCORD_ALLOWED_USERS` with the owner account ID. Do not set
+  `DISCORD_ALLOW_ALL_USERS`: its documented default is `false`.
+  Leave `DISCORD_ALLOWED_CHANNELS` unset so Hermes can respond in every Pomo
+  server channel that its Discord role can access.
+  - [x] Repo
+  - [ ] VM
+- Verify the runtime `.env` contains only:
 
   ```dotenv
   DISCORD_BOT_TOKEN=<GitHub Actions secret>
   DISCORD_ALLOWED_USERS=<owner Discord User ID>
-  DISCORD_ALLOW_ALL_USERS=false
-  # DISCORD_ALLOWED_CHANNELS=<optional channel ID>
   ```
 
-  - [ ] Repo
-  - [ ] VM
-- Verify ChatGPT/Codex OAuth persists as `/var/lib/hermes/pomo/auth.json`; it
-  is also a secret and must be mode `0600`.
-  - [ ] Repo
-  - [ ] VM
-- Verify that the bot can connect and respond without an inbound public port.
-  - [ ] Repo
+  - [x] Repo
   - [ ] VM
 
-Suggested commit when this phase is complete: `docs: configure Pomo Discord and authentication`
+Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runtime configuration`
 
-## Phase 5 — Deployment automation
+## Phase 4 — Hermes runtime and deployment
 
-- Add an Ansible role that deploys the Compose definition and runtime
+- Use the official `nousresearch/hermes-agent` image.
+  - [x] Repo
+  - n/a VM
+- Pin the tested image by immutable digest before the first deployment.
+  - [x] Repo
+  - [ ] VM
+- Derive each Compose project name as `hermes-<name>`; Pomo is therefore
+  `hermes-pomo`.
+  - [x] Repo
+  - [ ] VM
+- Retrieve the `hermes` UID and GID while rendering the Compose definition and
+  use them for `HERMES_UID` and `HERMES_GID`; do not hard-code `deploy` UID/GID
+  `1000`.
+  - [x] Repo
+  - [ ] VM
+- Use a dedicated Hermes network; never join `n8n_default`.
+  - [x] Repo
+  - [ ] VM
+- Configure `restart: unless-stopped`. Do not add a fabricated health check:
+  the pinned image exposes no built-in health check and the API endpoint stays
+  disabled with no inbound port for this deployment.
+  - [x] Repo
+  - [ ] VM
+- Mount only `/var/lib/hermes/<name>` at `/opt/data` for each instance's
+  persistent state.
+  - [x] Repo
+  - [ ] VM
+- Do not expose an inbound HTTP port initially; Discord uses outbound
+  connectivity.
+  - [x] Repo
+  - [ ] VM
+- Do not use `network_mode: host` or mount the Docker socket.
+  - [x] Repo
+  - [ ] VM
+- Confirm that no port, volume, network, container, or Compose project name
+  overlaps with n8n.
+  - [x] Repo
+  - [ ] VM
+- Add an Ansible role that renders the Compose definition and deploys runtime
   configuration idempotently.
   - [ ] Repo
   - [ ] VM
 - Start or update only the targeted `hermes-<name>` Compose project.
   - [ ] Repo
   - [ ] VM
-- Add post-deployment checks: container state, health check, and relevant logs.
+- After the first service start, complete ChatGPT/Codex OAuth with
+  `docker compose exec -it hermes hermes model`, then choose **ChatGPT or Codex
+  Subscription** in the browser device-login flow.
+  - [x] Repo
+  - [ ] VM
+- Keep OpenRouter as a fallback if the selected ChatGPT plan is not eligible;
+  do not create `OPENROUTER_API_KEY` initially.
+  - [x] Repo
+  - n/a VM
+- Verify OAuth persists as `/var/lib/hermes/pomo/auth.json`; it is a secret and
+  must be mode `0600`.
+  - [ ] Repo
+  - [ ] VM
+- Add post-deployment checks: container state and relevant logs, then verify
+  Discord connectivity instead of relying on a fabricated Docker health check.
   - [ ] Repo
   - [ ] VM
 - Prove that a second workflow run reports no unexpected changes.
@@ -243,9 +277,9 @@ Suggested commit when this phase is complete: `docs: configure Pomo Discord and 
   - [ ] Repo
   - [ ] VM
 
-Suggested commit when this phase is complete: `feat: automate Pomo deployment`
+Suggested commit when this phase is complete: `feat: deploy Pomo Hermes runtime`
 
-## Phase 6 — Operations
+## Phase 5 — Operations
 
 - Define backup and restore procedures for Pomo persistent data.
   - [ ] Repo

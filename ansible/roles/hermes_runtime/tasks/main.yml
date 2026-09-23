@@ -1,0 +1,24 @@
+---
+- name: Read Hermes system account
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ hermes_user }}"
+
+- name: Expose Hermes runtime UID and GID
+  ansible.builtin.set_fact:
+    hermes_runtime_uid: "{{ ansible_facts.getent_passwd[hermes_user][1] }}"
+    hermes_runtime_gid: "{{ ansible_facts.getent_passwd[hermes_user][2] }}"
+
+- name: Validate Hermes runtime UID and GID
+  ansible.builtin.assert:
+    that:
+      - hermes_runtime_uid | int > 0
+      - hermes_runtime_gid | int > 0
+    fail_msg: The Hermes system account has no valid UID or GID.
+
+- name: Render GitHub Actions runtime configuration
+  ansible.builtin.include_tasks: runtime_configuration.yml
+  loop: "{{ hermes_instances }}"
+  loop_control:
+    loop_var: hermes_instance
+  when: lookup('ansible.builtin.env', 'GITHUB_ACTIONS', default='false') | bool

@@ -1,0 +1,12 @@
+---
+# Shared host identity. Keep these values aligned with the system account.
+hermes_user: hermes
+hermes_group: hermes
+hermes_platform_root: /opt/hermes
+hermes_data_root: /var/lib/hermes
+hermes_backups_root: /var/backups/hermes
+
+hermes_instances:
+  - name: pomo
+    discord_allowed_users:
+      - "1321044380345307178" # ame

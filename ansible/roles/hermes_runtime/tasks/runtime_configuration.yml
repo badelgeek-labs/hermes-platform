@@ -1,0 +1,40 @@
+---
+- name: Validate runtime configuration inputs
+  ansible.builtin.assert:
+    that:
+      - hermes_instance.discord_allowed_users is defined
+      - hermes_instance.discord_allowed_users | length > 0
+      - lookup('ansible.builtin.env', 'DISCORD_BOT_TOKEN', default='') | length > 0
+      - lookup(
+          'ansible.builtin.env',
+          'HERMES_SOUL_' ~ (hermes_instance.name | upper | replace('-', '_')),
+          default=''
+        ) | length > 0
+    fail_msg: GitHub Actions must provide the Discord token and instance SOUL.
+  no_log: true
+
+- name: Render Hermes runtime environment
+  ansible.builtin.copy:
+    content: |
+      DISCORD_BOT_TOKEN={{ lookup('ansible.builtin.env', 'DISCORD_BOT_TOKEN') }}
+      DISCORD_ALLOWED_USERS={{ hermes_instance.discord_allowed_users | join(',') }}
+    dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}/.env"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0600'
+  become: true
+  no_log: true
+
+- name: Render Hermes instance identity
+  ansible.builtin.copy:
+    content: >-
+      {{ lookup(
+           'ansible.builtin.env',
+           'HERMES_SOUL_' ~ (hermes_instance.name | upper | replace('-', '_'))
+         ) }}
+    dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}/SOUL.md"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0600'
+  become: true
+  no_log: true

@@ -22,3 +22,7 @@
     - name: Prepare Hermes host layout
       ansible.builtin.include_role:
         name: hermes_layout
+
+    - name: Resolve Hermes runtime identity
+      ansible.builtin.include_role:
+        name: hermes_runtime

@@ -45,11 +45,11 @@ variables GitHub `DEPLOY_HOST` et `DEPLOY_USER`, ainsi que le secret
 La documentation opérationnelle suit l'ordre réel de déploiement :
 
 1. configurer et valider le lanceur Ansible local ;
-2. créer le bot Discord privé ;
-3. connecter Hermes au compte ChatGPT/Codex ;
-4. préparer les données persistantes et le secret Discord ;
-5. déployer le gateway Pomo ;
-6. ajouter les procédures d'exploitation et de backup plus tard.
+2. préparer l'hôte et l'arborescence Hermes ;
+3. créer le bot Discord privé et préparer ses secrets ;
+4. définir, déployer et démarrer le runtime Compose isolé, puis connecter
+   Hermes au compte ChatGPT/Codex ;
+5. ajouter les procédures d'exploitation et de backup plus tard.
 
 Voir le plan détaillé : [`ACTION_PLAN.md`](ACTION_PLAN.md).
 
@@ -114,8 +114,35 @@ Le répertoire de plateforme est géré par Ansible avec les privilèges élevé
 Le compte système `hermes`, sans accès SSH ni sudo, possède les données et
 sauvegardes. Chaque future instance aura son propre répertoire de données et
 son projet Compose `hermes-<name>`. Pour Pomo,
-`/var/lib/hermes/pomo/.env` et `auth.json` resteront hors Git avec des droits
-restreints. Le détail est documenté dans `ACTION_PLAN.md`.
+`/var/lib/hermes/pomo/.env`, `auth.json` et `SOUL.md` restent hors Git avec des
+droits restreints. Le détail est documenté dans `ACTION_PLAN.md`.
+
+## Identité de chaque instance
+
+Chaque instance Hermes possède son propre `SOUL.md`, stocké dans son répertoire
+de données persistant et monté dans le conteneur à `/opt/data/SOUL.md`. Son
+contenu n'est pas versionné dans ce dépôt public : GitHub Actions le reçoit via
+une Repository Variable nommée `HERMES_SOUL_<INSTANCE_EN_MAJUSCULES>`, par exemple
+`HERMES_SOUL_POMO`. Ansible le déploie avec le propriétaire `hermes:hermes` et
+le mode `0600`.
+
+Le déploiement de `SOUL.md`, des tokens et des autres secrets s'effectue
+uniquement via GitHub Actions. Le lanceur Ansible local ne récupère ni les
+variables ni les secrets GitHub et ne les écrit pas sur la VM.
+
+## Runtime Compose
+
+Le modèle [`ansible/templates/hermes-compose.yaml.j2`](ansible/templates/hermes-compose.yaml.j2)
+définit un service `hermes` par instance. Pour `pomo`, il produit le projet
+Compose `hermes-pomo`, le réseau isolé `hermes-pomo-network` et le conteneur
+généré par Compose `hermes-pomo-hermes-1`.
+
+Il utilise l'image officielle Hermes épinglée par digest, monte uniquement le
+répertoire de données de l'instance à `/opt/data`, et n'expose aucun port ni
+socket Docker. Le rôle de déploiement futur rendra ce modèle avec l'UID/GID
+réel du compte système `hermes`. Le rôle `hermes_runtime` récupère ces deux
+valeurs dynamiquement : aucun UID/GID n'est écrit en dur. Le Compose n'est pas
+encore appliqué à la VM.
 
 ## Exécution du playbook
 

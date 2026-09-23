@@ -28,6 +28,9 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
 
       - name: Run Ansible
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          HERMES_SOUL_POMO: ${{ vars.HERMES_SOUL_POMO }}
         run: |
           ansible-playbook \
             -i "${DEPLOY_HOST}," \

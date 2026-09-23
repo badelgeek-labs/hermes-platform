@@ -1,0 +1,6 @@
+---
+- name: Deploy Hermes instances
+  ansible.builtin.include_tasks: instance.yml
+  loop: "{{ hermes_instances }}"
+  loop_control:
+    loop_var: hermes_instance

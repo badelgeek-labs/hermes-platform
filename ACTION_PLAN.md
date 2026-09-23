@@ -154,10 +154,10 @@ Suggested commit when this phase is complete: `chore: prepare Hermes Pomo layout
            server. If the list is empty: Discord **+** → **Create My Own**, or ask
            a server administrator for that permission.
   7. Discord client → **User Settings** → **Advanced**:
-     - [ ] **Developer Mode**: on.
-     - [ ] Right-click the owner account → **Copy User ID**.
+     - [x] **Developer Mode**: on.
+     - [x] Right-click the owner account → **Copy User ID**.
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 - Keep Discord application creation manual. It belongs to the Discord account
   owner and cannot safely remove the one-time token handling.
   - [x] Repo
@@ -171,17 +171,17 @@ Suggested commit when this phase is complete: `chore: prepare Hermes Pomo layout
 - Add `DISCORD_BOT_TOKEN` as a GitHub Actions secret and write it with Ansible
   to `/var/lib/hermes/pomo/.env` without logging its value.
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 - Keep each instance's identity outside the public repository. Use the GitHub
   Actions repository-variable convention `HERMES_SOUL_<UPPERCASE_INSTANCE_NAME>`:
   `HERMES_SOUL_POMO` for Pomo.
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 - Render each instance identity to `/var/lib/hermes/<name>/SOUL.md`, owned by
   `hermes:hermes` with mode `0600`, using `no_log: true`. The mounted file is
   then `/opt/data/SOUL.md` inside the official container.
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 - Apply runtime secrets and instance identities only through GitHub Actions.
   The local Ansible launcher must not fetch GitHub variables or secrets, and
   must not write `.env` or `SOUL.md`.
@@ -192,7 +192,7 @@ Suggested commit when this phase is complete: `chore: prepare Hermes Pomo layout
   Leave `DISCORD_ALLOWED_CHANNELS` unset so Hermes can respond in every Pomo
   server channel that its Discord role can access.
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 - Verify the runtime `.env` contains only:
 
   ```dotenv
@@ -201,7 +201,7 @@ Suggested commit when this phase is complete: `chore: prepare Hermes Pomo layout
   ```
 
   - [x] Repo
-  - [ ] VM
+  - [x] VM
 
 Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runtime configuration`
 
@@ -247,10 +247,10 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
   - [ ] VM
 - Add an Ansible role that renders the Compose definition and deploys runtime
   configuration idempotently.
-  - [ ] Repo
+  - [x] Repo
   - [ ] VM
 - Start or update only the targeted `hermes-<name>` Compose project.
-  - [ ] Repo
+  - [x] Repo
   - [ ] VM
 - After the first service start, complete ChatGPT/Codex OAuth with
   `docker compose exec -it hermes hermes model`, then choose **ChatGPT or Codex

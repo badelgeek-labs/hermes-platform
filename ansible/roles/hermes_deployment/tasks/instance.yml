@@ -1,0 +1,42 @@
+---
+- name: Render Hermes Compose definition
+  ansible.builtin.template:
+    src: '{{ playbook_dir }}/templates/hermes-compose.yaml.j2'
+    dest: '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+
+- name: Ensure Hermes Compose project is running
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - up
+      - --detach
+  become: true
+  changed_when: false
+
+- name: List running Hermes Compose services
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - ps
+      - --status
+      - running
+      - --services
+  become: true
+  changed_when: false
+  register: hermes_running_services
+
+- name: Verify Hermes service is running
+  ansible.builtin.assert:
+    that:
+      - "'hermes' in hermes_running_services.stdout_lines"
+    fail_msg: 'Hermes service is not running for instance {{ hermes_instance.name }}.'

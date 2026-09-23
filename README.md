@@ -139,10 +139,11 @@ généré par Compose `hermes-pomo-hermes-1`.
 
 Il utilise l'image officielle Hermes épinglée par digest, monte uniquement le
 répertoire de données de l'instance à `/opt/data`, et n'expose aucun port ni
-socket Docker. Le rôle de déploiement futur rendra ce modèle avec l'UID/GID
-réel du compte système `hermes`. Le rôle `hermes_runtime` récupère ces deux
-valeurs dynamiquement : aucun UID/GID n'est écrit en dur. Le Compose n'est pas
-encore appliqué à la VM.
+socket Docker. Le rôle `hermes_deployment` rend ce modèle avec l'UID/GID réel du
+compte système `hermes`, converge uniquement le projet ciblé et vérifie que son
+service tourne. Le rôle `hermes_runtime` récupère ces deux valeurs dynamiquement
+: aucun UID/GID n'est écrit en dur. Le Compose n'est pas encore appliqué à la
+VM.
 
 ## Exécution du playbook
 

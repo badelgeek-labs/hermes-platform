@@ -26,3 +26,8 @@
     - name: Resolve Hermes runtime identity
       ansible.builtin.include_role:
         name: hermes_runtime
+
+    - name: Deploy Hermes runtime
+      ansible.builtin.include_role:
+        name: hermes_deployment
+      when: lookup('ansible.builtin.env', 'GITHUB_ACTIONS', default='false') | bool

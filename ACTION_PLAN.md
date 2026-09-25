@@ -193,11 +193,16 @@ Suggested commit when this phase is complete: `chore: prepare Hermes Pomo layout
   server channel that its Discord role can access.
   - [x] Repo
   - [x] VM
+- Configure `DISCORD_FREE_RESPONSE_CHANNELS` for channels where Pomo may reply
+  without a mention. Keep every other channel mention-only.
+  - [x] Repo
+  - [ ] VM
 - Verify the runtime `.env` contains only:
 
   ```dotenv
   DISCORD_BOT_TOKEN=<GitHub Actions secret>
   DISCORD_ALLOWED_USERS=<owner Discord User ID>
+  DISCORD_FREE_RESPONSE_CHANNELS=<Discord channel ID>
   ```
 
   - [x] Repo

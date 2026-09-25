@@ -18,6 +18,9 @@
     content: |
       DISCORD_BOT_TOKEN={{ lookup('ansible.builtin.env', 'DISCORD_BOT_TOKEN') }}
       DISCORD_ALLOWED_USERS={{ hermes_instance.discord_allowed_users | join(',') }}
+      {% if hermes_instance.discord_free_response_channels | default([]) | length > 0 %}
+      DISCORD_FREE_RESPONSE_CHANNELS={{ hermes_instance.discord_free_response_channels | join(',') }}
+      {% endif %}
     dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}/.env"
     owner: "{{ hermes_user }}"
     group: "{{ hermes_group }}"

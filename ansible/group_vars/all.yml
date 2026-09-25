@@ -9,4 +9,6 @@ hermes_backups_root: /var/backups/hermes
 hermes_instances:
   - name: pomo
     discord_allowed_users:
-      - "1321044380345307178" # ame
+      - '1321044380345307178' # ame
+    discord_free_response_channels:
+      - '1552087309090947144' # @pomo/#pomo-agent

@@ -31,3 +31,8 @@
       ansible.builtin.include_role:
         name: hermes_deployment
       when: lookup('ansible.builtin.env', 'GITHUB_ACTIONS', default='false') | bool
+
+    - name: Deploy Hermes plugins
+      ansible.builtin.include_role:
+        name: hermes_plugins
+      when: lookup('ansible.builtin.env', 'GITHUB_ACTIONS', default='false') | bool

@@ -202,11 +202,10 @@ Suggested commit when this phase is complete: `chore: prepare Hermes Pomo layout
   ```dotenv
   DISCORD_BOT_TOKEN=<GitHub Actions secret>
   DISCORD_ALLOWED_USERS=<owner Discord User ID>
-  DISCORD_FREE_RESPONSE_CHANNELS=<Discord channel ID>
   ```
 
   - [x] Repo
-  - [x] VM
+  - [ ] VM
 
 Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runtime configuration`
 
@@ -255,6 +254,23 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
   - [x] Repo
   - [ ] VM
 - Start or update only the targeted `hermes-<name>` Compose project.
+  - [x] Repo
+  - [ ] VM
+- Deploy the generic `discord-forum-posts` Hermes plugin. It can list tags on a
+  Discord forum, create a forum post with its required initial message, send a
+  message in an existing forum post, and apply only tags already defined on
+  that forum; it cannot create, rename, or delete forum tags.
+  - [x] Repo
+  - [ ] VM
+- Add the plugin to the `plugins.enabled` list through the Hermes configuration
+  CLI, preserving other enabled plugins. Do not render or replace the existing
+  `config.yaml` with Ansible.
+  - [x] Repo
+  - [ ] VM
+- In Discord, grant the Hermes bot role **Create Posts**, **Send Messages in
+  Posts**, and **Read Post History** on each managed forum. Add **Manage Posts**
+  only where it may update post tags. Keep **Administrator**, **Manage Channel**,
+  and **Manage Permissions** disabled.
   - [x] Repo
   - [ ] VM
 - After the first service start, complete ChatGPT/Codex OAuth with

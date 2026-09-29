@@ -1,0 +1,6 @@
+name: discord-forum-posts
+version: "1.1.0"
+description: Create Discord forum posts, send post messages, and apply existing forum tags.
+author: Hermes Platform
+requires_env:
+  - DISCORD_BOT_TOKEN

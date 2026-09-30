@@ -65,6 +65,56 @@
   when: "'discord-forum-posts' not in hermes_enabled_plugins_list"
   register: hermes_forum_posts_plugin_configuration
 
+- name: Read Discord forum-post gateway-injection permission
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - exec
+      - --no-TTY
+      - --user
+      - '{{ hermes_runtime_uid }}:{{ hermes_runtime_gid }}'
+      - hermes
+      - hermes
+      - config
+      - get
+      - plugins.entries.discord-forum-posts.allow_gateway_injection
+      - --json
+  become: true
+  changed_when: false
+  failed_when: >-
+    hermes_forum_posts_gateway_injection.rc != 0 and
+    'Config key not set: plugins.entries.discord-forum-posts.allow_gateway_injection' not in hermes_forum_posts_gateway_injection.stderr
+  register: hermes_forum_posts_gateway_injection
+
+- name: Decode Discord forum-post gateway-injection permission
+  ansible.builtin.set_fact:
+    hermes_forum_posts_gateway_injection_enabled: >-
+      {{ hermes_forum_posts_gateway_injection.stdout | default('false', true) | from_json }}
+
+- name: Allow Discord forum-post plugin to inject gateway messages
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - exec
+      - --no-TTY
+      - --user
+      - '{{ hermes_runtime_uid }}:{{ hermes_runtime_gid }}'
+      - hermes
+      - hermes
+      - config
+      - set
+      - plugins.entries.discord-forum-posts.allow_gateway_injection
+      - 'true'
+  become: true
+  when: not hermes_forum_posts_gateway_injection_enabled
+  register: hermes_forum_posts_gateway_injection_configuration
+
 - name: Restart Hermes after plugin changes
   ansible.builtin.command:
     argv:
@@ -77,7 +127,8 @@
   become: true
   when: >-
     hermes_forum_posts_plugin_files.changed or
-    (hermes_forum_posts_plugin_configuration.changed | default(false))
+    (hermes_forum_posts_plugin_configuration.changed | default(false)) or
+    (hermes_forum_posts_gateway_injection_configuration.changed | default(false))
 
 - name: Verify Discord forum-post plugin is enabled
   ansible.builtin.command:

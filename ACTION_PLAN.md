@@ -258,13 +258,20 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
   - [ ] VM
 - Deploy the generic `discord-forum-posts` Hermes plugin. It can list tags on a
   Discord forum, create a forum post with its required initial message, send a
-  message in an existing forum post, and apply only tags already defined on
-  that forum; it cannot create, rename, or delete forum tags.
+  message in an existing forum post, apply only tags already defined on that
+  forum, and render optional generic action buttons; it cannot create, rename,
+  or delete forum tags.
   - [x] Repo
   - [ ] VM
 - Add the plugin to the `plugins.enabled` list through the Hermes configuration
   CLI, preserving other enabled plugins. Do not render or replace the existing
   `config.yaml` with Ansible.
+  - [x] Repo
+  - [ ] VM
+- Explicitly allow `discord-forum-posts` to inject a button-click event into an
+  existing Hermes gateway session. This is required for a button click to start
+  an agent turn; the plugin still does not define the business meaning of an
+  action.
   - [x] Repo
   - [ ] VM
 - In Discord, grant the Hermes bot role **Create Posts**, **Send Messages in

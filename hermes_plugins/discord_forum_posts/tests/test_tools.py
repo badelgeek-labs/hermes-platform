@@ -60,6 +60,32 @@ class FakeContext:
         return True
 
 
+class FakeAsyncSessionStore:
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, bool]] = []
+
+    async def get_or_create_session(
+        self, source: object, *, touch_activity: bool
+    ) -> object:
+        self.calls.append((source, touch_activity))
+        return type("Session", (), {"session_key": "test-session"})()
+
+
+class FakeGatewayRunner:
+    def __init__(self) -> None:
+        self.async_session_store = FakeAsyncSessionStore()
+
+
+class FakeAdapter:
+    def __init__(self) -> None:
+        self.gateway_runner = FakeGatewayRunner()
+        self.source: dict[str, object] | None = None
+
+    def build_source(self, **kwargs: object) -> object:
+        self.source = kwargs
+        return kwargs
+
+
 class FakeBot:
     def __init__(self) -> None:
         self.user = type("User", (), {"id": 999})()
@@ -87,6 +113,8 @@ def fake_interaction(*, actor_id: int = 123) -> object:
             "message": message,
             "user": user,
             "channel_id": 456,
+            "channel": type("Channel", (), {"name": "Review", "parent_id": 789})(),
+            "guild_id": 321,
             "response": FakeResponse(),
         },
     )()
@@ -233,12 +261,11 @@ class DiscordForumPostsClientTests(unittest.TestCase):
     def test_button_click_injects_a_descriptive_action_event(self) -> None:
         context = FakeContext()
         bot = FakeBot()
+        adapter = FakeAdapter()
         interaction = fake_interaction()
 
-        with patch.dict("os.environ", {"DISCORD_ALLOWED_USERS": "123"}, clear=False), patch(
-            "discord_forum_posts._session_key_for_forum_post", return_value="test-session"
-        ):
-            _wire_discord_component_actions(context, bot, object())
+        with patch.dict("os.environ", {"DISCORD_ALLOWED_USERS": "123"}, clear=False):
+            _wire_discord_component_actions(context, bot, adapter)
             asyncio.run(bot.listeners[0](interaction))
 
         self.assertEqual(bot.event_name, "on_interaction")
@@ -256,6 +283,13 @@ class DiscordForumPostsClientTests(unittest.TestCase):
             ],
         )
         self.assertEqual(interaction.response.messages, [("Action received.", True)])
+        self.assertEqual(adapter.source["chat_id"], "456")
+        self.assertEqual(adapter.source["thread_id"], "456")
+        self.assertEqual(adapter.source["parent_chat_id"], "789")
+        self.assertEqual(
+            adapter.gateway_runner.async_session_store.calls,
+            [(adapter.source, False)],
+        )
 
 
 if __name__ == "__main__":

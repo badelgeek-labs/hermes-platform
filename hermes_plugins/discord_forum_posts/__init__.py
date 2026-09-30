@@ -43,11 +43,12 @@ def _action_label(interaction: Any, custom_id: str) -> str | None:
     return None
 
 
-def _session_key_for_forum_post(adapter: Any, interaction: Any) -> str:
-    """Build the same default shared-thread key that Hermes uses for Discord messages."""
+async def _session_key_for_forum_post(adapter: Any, interaction: Any) -> str:
+    """Create or reuse this forum post's session using the live gateway configuration."""
 
-    from gateway.session import build_session_key
-
+    gateway_runner = getattr(adapter, "gateway_runner", None)
+    if gateway_runner is None:
+        raise RuntimeError("The Hermes gateway runner is unavailable.")
     channel = interaction.channel
     thread_id = str(interaction.channel_id)
     parent_id = str(
@@ -65,7 +66,11 @@ def _session_key_for_forum_post(adapter: Any, interaction: Any) -> str:
         guild_id=str(interaction.guild_id) if interaction.guild_id else None,
         parent_chat_id=parent_id or None,
     )
-    return build_session_key(source)
+    session = await gateway_runner.async_session_store.get_or_create_session(
+        source,
+        touch_activity=False,
+    )
+    return str(session.session_key)
 
 
 def _component_action_event(
@@ -118,7 +123,7 @@ def _wire_discord_component_actions(ctx: Any, bot: Any, adapter: Any) -> None:
             return
 
         try:
-            session_key = _session_key_for_forum_post(adapter, interaction)
+            session_key = await _session_key_for_forum_post(adapter, interaction)
             accepted = ctx.inject_message(
                 _component_action_event(
                     action_id=action_id,

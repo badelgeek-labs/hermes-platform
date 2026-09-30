@@ -268,10 +268,10 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
   `config.yaml` with Ansible.
   - [x] Repo
   - [ ] VM
-- Explicitly allow `discord-forum-posts` to inject a button-click event into an
-  existing Hermes gateway session. This is required for a button click to start
-  an agent turn; the plugin still does not define the business meaning of an
-  action.
+- Explicitly allow `discord-forum-posts` to create or reuse a Hermes gateway
+  session when a button is clicked, then inject the button-click event. This
+  lets posts created by automation remain sessionless until somebody interacts
+  with them; the plugin still does not define the business meaning of an action.
   - [x] Repo
   - [ ] VM
 - In Discord, grant the Hermes bot role **Create Posts**, **Send Messages in

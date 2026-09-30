@@ -1,6 +1,6 @@
 name: discord-forum-posts
-version: "1.2.0"
-description: Create Discord forum posts with optional actions, send post messages, and apply existing forum tags.
+version: "1.3.0"
+description: Create, edit, and delete Discord forum posts; manage existing forum tags; and send messages with generic action or link buttons.
 author: Hermes Platform
 requires_env:
   - DISCORD_BOT_TOKEN

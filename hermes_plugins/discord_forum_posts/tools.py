@@ -7,6 +7,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -20,6 +21,13 @@ MAX_ACTIONS = 25
 MAX_ACTION_LABEL_LENGTH = 80
 ACTION_CUSTOM_ID_PREFIX = "hermes-forum-posts:v1:"
 ACTION_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+BUTTON_STYLES = {
+    "primary": 1,
+    "secondary": 2,
+    "success": 3,
+    "danger": 4,
+    "link": 5,
+}
 
 
 class DiscordApiError(RuntimeError):
@@ -151,6 +159,55 @@ class DiscordForumPostsClient:
             "actions": validated_actions,
         }
 
+    def edit_post_message(
+        self,
+        post_id: str,
+        message_id: str,
+        content: str,
+        actions: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Replace a forum-post message's content and, when supplied, its buttons."""
+
+        post, forum = self._get_forum_post(post_id)
+        normalized_post_id = self._snowflake(post_id, "post_id")
+        normalized_message_id = self._snowflake(message_id, "message_id")
+        existing_message = self._request(
+            "GET", f"/channels/{normalized_post_id}/messages/{normalized_message_id}"
+        )
+        if str(existing_message.get("channel_id", "")) != normalized_post_id:
+            raise DiscordApiError("message_id must identify a message belonging to post_id.")
+
+        validated_actions = self._actions(actions)
+        payload: dict[str, Any] = {
+            "content": self._text(content, "content", MAX_MESSAGE_LENGTH),
+            "allowed_mentions": {"parse": []},
+        }
+        # Omitting actions preserves the message's current components; an empty list clears them.
+        if actions is not None:
+            payload.update(self._message_components(validated_actions, include_empty=True))
+        message = self._request(
+            "PATCH",
+            f"/channels/{normalized_post_id}/messages/{normalized_message_id}",
+            payload,
+        )
+        return {
+            "forum_id": str(forum["id"]),
+            "post_id": str(post["id"]),
+            "message_id": str(message["id"]),
+            "actions": validated_actions,
+        }
+
+    def delete_forum_post(self, post_id: str) -> dict[str, Any]:
+        """Delete one verified Discord forum post (thread)."""
+
+        post, forum = self._get_forum_post(post_id)
+        self._request("DELETE", f"/channels/{self._snowflake(post_id, 'post_id')}")
+        return {
+            "forum_id": str(forum["id"]),
+            "post_id": str(post["id"]),
+            "deleted": True,
+        }
+
     def _get_forum_post(self, post_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         post = self._request("GET", f"/channels/{self._snowflake(post_id, 'post_id')}")
         parent_id = post.get("parent_id")
@@ -189,7 +246,8 @@ class DiscordForumPostsClient:
         )
         try:
             with urlopen(request, timeout=15) as response:  # nosec B310
-                return json.loads(response.read().decode("utf-8"))
+                response_body = response.read()
+                return json.loads(response_body.decode("utf-8")) if response_body else {}
         except HTTPError as error:
             raise DiscordApiError(
                 f"Discord API request failed ({error.code}). Check the bot's forum permissions."
@@ -231,15 +289,38 @@ class DiscordForumPostsClient:
         for action in actions:
             if not isinstance(action, dict):
                 raise DiscordApiError("Every action must be an object.")
+            style = action.get("style", "secondary")
+            if not isinstance(style, str) or style not in BUTTON_STYLES:
+                raise DiscordApiError(
+                    "action style must be primary, secondary, success, danger, or link."
+                )
             action_id = action.get("id")
-            if not isinstance(action_id, str) or not ACTION_ID_PATTERN.fullmatch(action_id):
+            if style != "link" and (
+                not isinstance(action_id, str)
+                or not ACTION_ID_PATTERN.fullmatch(action_id)
+            ):
                 raise DiscordApiError(
                     "Each action id must start with a letter and contain only letters, "
                     "numbers, hyphens, or underscores."
                 )
-            if action_id in action_ids:
+            if action_id is not None and (
+                not isinstance(action_id, str) or not ACTION_ID_PATTERN.fullmatch(action_id)
+            ):
+                raise DiscordApiError(
+                    "Each action id must start with a letter and contain only letters, "
+                    "numbers, hyphens, or underscores."
+                )
+            if action_id is not None and action_id in action_ids:
                 raise DiscordApiError(f"Duplicate action id: {action_id}.")
-            action_ids.add(action_id)
+            if action_id is not None:
+                action_ids.add(action_id)
+
+            url = action.get("url")
+            if style == "link":
+                if not isinstance(url, str) or not DiscordForumPostsClient._is_http_url(url):
+                    raise DiscordApiError("link actions require an HTTP or HTTPS url.")
+            elif "url" in action:
+                raise DiscordApiError("url is only allowed for link actions.")
 
             label = DiscordForumPostsClient._text(
                 action.get("label"), "action label", MAX_ACTION_LABEL_LENGTH
@@ -247,7 +328,13 @@ class DiscordForumPostsClient:
             if "\n" in label or "\r" in label:
                 raise DiscordApiError("action label must be a single line.")
 
-            normalized_action = {"id": action_id, "label": label}
+            normalized_action = {"label": label}
+            if action_id is not None:
+                normalized_action["id"] = action_id
+            if "style" in action:
+                normalized_action["style"] = style
+            if style == "link":
+                normalized_action["url"] = url.strip()
             emoji = action.get("emoji")
             if emoji is not None:
                 if not isinstance(emoji, str) or not emoji.strip() or len(emoji) > 100:
@@ -257,9 +344,11 @@ class DiscordForumPostsClient:
         return normalized
 
     @staticmethod
-    def _message_components(actions: list[dict[str, str]]) -> dict[str, list[dict[str, Any]]]:
+    def _message_components(
+        actions: list[dict[str, str]], include_empty: bool = False
+    ) -> dict[str, list[dict[str, Any]]]:
         if not actions:
-            return {}
+            return {"components": []} if include_empty else {}
 
         rows = []
         for offset in range(0, len(actions), 5):
@@ -267,15 +356,23 @@ class DiscordForumPostsClient:
             for action in actions[offset : offset + 5]:
                 button: dict[str, Any] = {
                     "type": 2,
-                    "style": 2,
-                    "custom_id": f"{ACTION_CUSTOM_ID_PREFIX}{action['id']}",
+                    "style": BUTTON_STYLES[action.get("style", "secondary")],
                     "label": action["label"],
                 }
+                if button["style"] == BUTTON_STYLES["link"]:
+                    button["url"] = action["url"]
+                else:
+                    button["custom_id"] = f"{ACTION_CUSTOM_ID_PREFIX}{action['id']}"
                 if "emoji" in action:
                     button["emoji"] = {"name": action["emoji"]}
                 buttons.append(button)
             rows.append({"type": 1, "components": buttons})
         return {"components": rows}
+
+    @staticmethod
+    def _is_http_url(value: str) -> bool:
+        parsed = urlparse(value.strip())
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
     @staticmethod
     def _text(value: str, field_name: str, maximum_length: int) -> str:

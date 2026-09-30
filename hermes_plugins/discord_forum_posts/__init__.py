@@ -210,6 +210,29 @@ def register(ctx: Any) -> None:
         except (DiscordApiError, KeyError, TypeError, ValueError) as error:
             return _json_result({"ok": False, "error": str(error)})
 
+    def edit_post_message(params: dict[str, Any], **kwargs: Any) -> str:
+        del kwargs
+        try:
+            result = DiscordForumPostsClient.from_environment().edit_post_message(
+                post_id=params["post_id"],
+                message_id=params["message_id"],
+                content=params["content"],
+                actions=params.get("actions"),
+            )
+            return _json_result({"ok": True, **result})
+        except (DiscordApiError, KeyError, TypeError, ValueError) as error:
+            return _json_result({"ok": False, "error": str(error)})
+
+    def delete_forum_post(params: dict[str, Any], **kwargs: Any) -> str:
+        del kwargs
+        try:
+            result = DiscordForumPostsClient.from_environment().delete_forum_post(
+                post_id=params["post_id"]
+            )
+            return _json_result({"ok": True, **result})
+        except (DiscordApiError, KeyError, TypeError, ValueError) as error:
+            return _json_result({"ok": False, "error": str(error)})
+
     ctx.register_tool(
         name="discord_list_forum_tags",
         toolset="discord_forum_posts",
@@ -320,8 +343,18 @@ def register(ctx: Any) -> None:
                                     "type": "string",
                                     "description": "Optional Unicode emoji.",
                                 },
+                                "style": {
+                                    "type": "string",
+                                    "enum": ["primary", "secondary", "success", "danger", "link"],
+                                    "default": "secondary",
+                                    "description": "Button style; link buttons require url.",
+                                },
+                                "url": {
+                                    "type": "string",
+                                    "description": "HTTP(S) URL for a link button only.",
+                                },
                             },
-                            "required": ["id", "label"],
+                            "required": ["label"],
                         },
                     },
                 },
@@ -357,8 +390,14 @@ def register(ctx: Any) -> None:
                                 "id": {"type": "string"},
                                 "label": {"type": "string"},
                                 "emoji": {"type": "string"},
+                                "style": {
+                                    "type": "string",
+                                    "enum": ["primary", "secondary", "success", "danger", "link"],
+                                    "default": "secondary",
+                                },
+                                "url": {"type": "string"},
                             },
-                            "required": ["id", "label"],
+                            "required": ["label"],
                         },
                     },
                 },
@@ -366,6 +405,75 @@ def register(ctx: Any) -> None:
             },
         },
         handler=send_post_message,
+    )
+    ctx.register_tool(
+        name="discord_edit_post_message",
+        toolset="discord_forum_posts",
+        schema={
+            "name": "discord_edit_post_message",
+            "description": (
+                "Edit one existing message in a Discord forum post. Supplying actions "
+                "replaces its buttons; use an empty array to remove all buttons."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "post_id": {
+                        "type": "string",
+                        "description": "Discord forum post (thread) ID.",
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "Message ID belonging to that forum post.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Replacement message content (1 to 2,000 characters).",
+                    },
+                    "actions": {
+                        "type": "array",
+                        "maxItems": 25,
+                        "description": "Replacement generic Discord buttons; [] removes buttons.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "label": {"type": "string"},
+                                "emoji": {"type": "string"},
+                                "style": {
+                                    "type": "string",
+                                    "enum": ["primary", "secondary", "success", "danger", "link"],
+                                    "default": "secondary",
+                                },
+                                "url": {"type": "string"},
+                            },
+                            "required": ["label"],
+                        },
+                    },
+                },
+                "required": ["post_id", "message_id", "content"],
+            },
+        },
+        handler=edit_post_message,
+    )
+    ctx.register_tool(
+        name="discord_delete_forum_post",
+        toolset="discord_forum_posts",
+        schema={
+            "name": "discord_delete_forum_post",
+            "description": "Delete one existing Discord forum post (thread).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "post_id": {
+                        "type": "string",
+                        "description": "Discord forum post (thread) ID.",
+                    }
+                },
+                "required": ["post_id"],
+            },
+        },
+        handler=delete_forum_post,
     )
     ctx.register_platform_handler(
         "discord",

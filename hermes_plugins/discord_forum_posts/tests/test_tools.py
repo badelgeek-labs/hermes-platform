@@ -27,6 +27,7 @@ class FakeClient(DiscordForumPostsClient):
             ],
         }
         self.post = {"id": "200", "parent_id": "100", "applied_tags": ["1"]}
+        self.message = {"id": "400", "channel_id": "200"}
 
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict:
         self.requests.append((method, path, payload))
@@ -40,6 +41,12 @@ class FakeClient(DiscordForumPostsClient):
             return {"id": "300", "applied_tags": payload["applied_tags"]}
         if path == "/channels/200/messages" and method == "POST":
             return {"id": "400", "channel_id": "200"}
+        if path == "/channels/200/messages/400" and method == "GET":
+            return self.message
+        if path == "/channels/200/messages/400" and method == "PATCH":
+            return {"id": "400", "channel_id": "200"}
+        if path == "/channels/200" and method == "DELETE":
+            return {}
         raise AssertionError(f"Unexpected request: {method} {path}")
 
 
@@ -96,10 +103,11 @@ class FakeBot:
         self.event_name = event_name
 
 
-def fake_interaction(*, actor_id: int = 123) -> object:
+def fake_interaction(*, actor_id: int = 123, custom_id: str | None = None) -> object:
+    custom_id = "hermes-forum-posts:v1:shorter" if custom_id is None else custom_id
     button = type(
         "Button",
-        (), {"custom_id": "hermes-forum-posts:v1:shorter", "label": "Plus courte"},
+        (), {"custom_id": custom_id, "label": "Plus courte"},
     )()
     row = type("ActionRow", (), {"children": [button]})()
     author = type("Author", (), {"id": 999})()
@@ -109,7 +117,7 @@ def fake_interaction(*, actor_id: int = 123) -> object:
         "Interaction",
         (),
         {
-            "data": {"custom_id": "hermes-forum-posts:v1:shorter"},
+            "data": {"custom_id": custom_id},
             "message": message,
             "user": user,
             "channel_id": 456,
@@ -258,6 +266,138 @@ class DiscordForumPostsClientTests(unittest.TestCase):
                 ],
             )
 
+    def test_create_post_maps_every_interactive_button_style(self) -> None:
+        client = FakeClient()
+
+        client.create_forum_post(
+            "100",
+            "Styles",
+            "Draft reply",
+            ["1"],
+            actions=[
+                {"id": "primary", "label": "Primary", "style": "primary"},
+                {"id": "secondary", "label": "Secondary", "style": "secondary"},
+                {"id": "success", "label": "Success", "style": "success"},
+                {"id": "danger", "label": "Danger", "style": "danger"},
+            ],
+        )
+
+        buttons = client.requests[-1][2]["message"]["components"][0]["components"]
+        self.assertEqual([button["style"] for button in buttons], [1, 2, 3, 4])
+        self.assertEqual(
+            [button["custom_id"] for button in buttons],
+            [
+                "hermes-forum-posts:v1:primary",
+                "hermes-forum-posts:v1:secondary",
+                "hermes-forum-posts:v1:success",
+                "hermes-forum-posts:v1:danger",
+            ],
+        )
+
+    def test_link_button_has_url_and_no_custom_id(self) -> None:
+        client = FakeClient()
+
+        result = client.send_post_message(
+            "200",
+            "Follow-up",
+            actions=[
+                {
+                    "label": "Voir l'avis",
+                    "emoji": "🔗",
+                    "style": "link",
+                    "url": "https://example.com/review",
+                }
+            ],
+        )
+
+        self.assertEqual(result["actions"][0]["url"], "https://example.com/review")
+        button = client.requests[-1][2]["components"][0]["components"][0]
+        self.assertEqual(button["style"], 5)
+        self.assertEqual(button["url"], "https://example.com/review")
+        self.assertNotIn("custom_id", button)
+
+    def test_rejects_invalid_link_url(self) -> None:
+        with self.assertRaisesRegex(DiscordApiError, "HTTP or HTTPS url"):
+            FakeClient().send_post_message(
+                "200",
+                "Follow-up",
+                actions=[{"label": "Link", "style": "link", "url": "ftp://example.com"}],
+            )
+
+    def test_rejects_url_for_interactive_action(self) -> None:
+        with self.assertRaisesRegex(DiscordApiError, "only allowed for link"):
+            FakeClient().send_post_message(
+                "200",
+                "Follow-up",
+                actions=[
+                    {
+                        "id": "publish",
+                        "label": "Publish",
+                        "url": "https://example.com/review",
+                    }
+                ],
+            )
+
+    def test_edit_message_replaces_content_and_actions(self) -> None:
+        client = FakeClient()
+
+        result = client.edit_post_message(
+            "200",
+            "400",
+            "Replacement",
+            actions=[{"id": "publish", "label": "Publier", "style": "success"}],
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "forum_id": "100",
+                "post_id": "200",
+                "message_id": "400",
+                "actions": [{"id": "publish", "label": "Publier", "style": "success"}],
+            },
+        )
+        self.assertEqual(
+            client.requests[-1],
+            (
+                "PATCH",
+                "/channels/200/messages/400",
+                {
+                    "content": "Replacement",
+                    "allowed_mentions": {"parse": []},
+                    "components": [
+                        {
+                            "type": 1,
+                            "components": [
+                                {
+                                    "type": 2,
+                                    "style": 3,
+                                    "custom_id": "hermes-forum-posts:v1:publish",
+                                    "label": "Publier",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ),
+        )
+
+    def test_edit_rejects_message_from_another_post(self) -> None:
+        client = FakeClient()
+        client.message["channel_id"] = "999"
+
+        with self.assertRaisesRegex(DiscordApiError, "belonging to post_id"):
+            client.edit_post_message("200", "400", "Replacement", actions=[])
+
+    def test_delete_forum_post(self) -> None:
+        client = FakeClient()
+
+        self.assertEqual(
+            client.delete_forum_post("200"),
+            {"forum_id": "100", "post_id": "200", "deleted": True},
+        )
+        self.assertEqual(client.requests[-1], ("DELETE", "/channels/200", None))
+
     def test_button_click_injects_a_descriptive_action_event(self) -> None:
         context = FakeContext()
         bot = FakeBot()
@@ -290,6 +430,19 @@ class DiscordForumPostsClientTests(unittest.TestCase):
             adapter.gateway_runner.async_session_store.calls,
             [(adapter.source, False)],
         )
+
+    def test_link_click_does_not_inject_an_hermes_event(self) -> None:
+        context = FakeContext()
+        bot = FakeBot()
+        adapter = FakeAdapter()
+        interaction = fake_interaction(custom_id="")
+
+        _wire_discord_component_actions(context, bot, adapter)
+        asyncio.run(bot.listeners[0](interaction))
+
+        self.assertEqual(context.injected, [])
+        self.assertEqual(adapter.gateway_runner.async_session_store.calls, [])
+        self.assertEqual(interaction.response.messages, [])
 
 
 if __name__ == "__main__":

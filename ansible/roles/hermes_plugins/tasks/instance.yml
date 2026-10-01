@@ -15,6 +15,16 @@
   become: true
   register: hermes_forum_posts_plugin_files
 
+- name: Install Discord UI plugin files
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/../hermes_plugins/discord_ui/'
+    dest: '{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins/discord-ui/'
+    owner: '{{ hermes_user }}'
+    group: '{{ hermes_group }}'
+    mode: preserve
+  become: true
+  register: hermes_discord_ui_plugin_files
+
 - name: Read enabled Hermes plugins
   ansible.builtin.command:
     argv:
@@ -64,6 +74,27 @@
   become: true
   when: "'discord-forum-posts' not in hermes_enabled_plugins_list"
   register: hermes_forum_posts_plugin_configuration
+
+- name: Add Discord UI plugin to the enabled list
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - exec
+      - --no-TTY
+      - --user
+      - '{{ hermes_runtime_uid }}:{{ hermes_runtime_gid }}'
+      - hermes
+      - hermes
+      - config
+      - set
+      - plugins.enabled
+      - '{{ (hermes_enabled_plugins_list + ["discord-forum-posts", "discord-ui"]) | unique | to_json }}'
+  become: true
+  when: "'discord-ui' not in hermes_enabled_plugins_list"
+  register: hermes_discord_ui_plugin_configuration
 
 - name: Read Discord forum-post gateway-injection permission
   ansible.builtin.command:
@@ -115,6 +146,56 @@
   when: not hermes_forum_posts_gateway_injection_enabled
   register: hermes_forum_posts_gateway_injection_configuration
 
+- name: Read Discord UI gateway-injection permission
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - exec
+      - --no-TTY
+      - --user
+      - '{{ hermes_runtime_uid }}:{{ hermes_runtime_gid }}'
+      - hermes
+      - hermes
+      - config
+      - get
+      - plugins.entries.discord-ui.allow_gateway_injection
+      - --json
+  become: true
+  changed_when: false
+  failed_when: >-
+    hermes_discord_ui_gateway_injection.rc != 0 and
+    'Config key not set: plugins.entries.discord-ui.allow_gateway_injection' not in hermes_discord_ui_gateway_injection.stderr
+  register: hermes_discord_ui_gateway_injection
+
+- name: Decode Discord UI gateway-injection permission
+  ansible.builtin.set_fact:
+    hermes_discord_ui_gateway_injection_enabled: >-
+      {{ hermes_discord_ui_gateway_injection.stdout | default('false', true) | from_json }}
+
+- name: Allow Discord UI plugin to inject gateway messages
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - exec
+      - --no-TTY
+      - --user
+      - '{{ hermes_runtime_uid }}:{{ hermes_runtime_gid }}'
+      - hermes
+      - hermes
+      - config
+      - set
+      - plugins.entries.discord-ui.allow_gateway_injection
+      - 'true'
+  become: true
+  when: not hermes_discord_ui_gateway_injection_enabled
+  register: hermes_discord_ui_gateway_injection_configuration
+
 - name: Restart Hermes after plugin changes
   ansible.builtin.command:
     argv:
@@ -127,8 +208,11 @@
   become: true
   when: >-
     hermes_forum_posts_plugin_files.changed or
+    hermes_discord_ui_plugin_files.changed or
     (hermes_forum_posts_plugin_configuration.changed | default(false)) or
-    (hermes_forum_posts_gateway_injection_configuration.changed | default(false))
+    (hermes_discord_ui_plugin_configuration.changed | default(false)) or
+    (hermes_forum_posts_gateway_injection_configuration.changed | default(false)) or
+    (hermes_discord_ui_gateway_injection_configuration.changed | default(false))
 
 - name: Verify Discord forum-post plugin is enabled
   ansible.builtin.command:
@@ -148,4 +232,6 @@
   become: true
   changed_when: false
   register: hermes_plugins_list
-  failed_when: "'discord-forum-posts' not in hermes_plugins_list.stdout"
+  failed_when: >-
+    'discord-forum-posts' not in hermes_plugins_list.stdout or
+    'discord-ui' not in hermes_plugins_list.stdout

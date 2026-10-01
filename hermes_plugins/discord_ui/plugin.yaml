@@ -1,0 +1,6 @@
+name: discord-ui
+version: "1.0.0"
+description: Persistent generic Discord modal definitions and structured modal-submit injection.
+author: Hermes Platform
+requires_env:
+  - DISCORD_BOT_TOKEN

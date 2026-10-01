@@ -316,6 +316,53 @@ class DiscordForumPostsClientTests(unittest.TestCase):
         self.assertEqual(button["url"], "https://example.com/review")
         self.assertNotIn("custom_id", button)
 
+    def test_modal_reference_button_uses_discord_ui_prefix(self) -> None:
+        client = FakeClient()
+
+        result = client.send_post_message(
+            "200",
+            "Follow-up",
+            actions=[
+                {
+                    "label": "Modifier manuellement",
+                    "emoji": "✏️",
+                    "style": "secondary",
+                    "interaction_ref": "mui_example",
+                }
+            ],
+        )
+
+        self.assertEqual(result["actions"][0]["interaction_ref"], "mui_example")
+        button = client.requests[-1][2]["components"][0]["components"][0]
+        self.assertEqual(button["custom_id"], "hermes-discord-ui:v1:mui_example")
+
+    def test_rejects_modal_reference_with_link_style_or_url(self) -> None:
+        with self.assertRaisesRegex(DiscordApiError, "cannot define id or interaction_ref"):
+            FakeClient().send_post_message(
+                "200",
+                "Follow-up",
+                actions=[
+                    {
+                        "label": "Modifier",
+                        "style": "link",
+                        "url": "https://example.com",
+                        "interaction_ref": "mui_example",
+                    }
+                ],
+            )
+        with self.assertRaisesRegex(DiscordApiError, "url is only allowed"):
+            FakeClient().send_post_message(
+                "200",
+                "Follow-up",
+                actions=[
+                    {
+                        "label": "Modifier",
+                        "interaction_ref": "mui_example",
+                        "url": "https://example.com",
+                    }
+                ],
+            )
+
     def test_rejects_invalid_link_url(self) -> None:
         with self.assertRaisesRegex(DiscordApiError, "HTTP or HTTPS url"):
             FakeClient().send_post_message(

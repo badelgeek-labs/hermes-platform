@@ -335,6 +335,10 @@ def register(ctx: Any) -> None:
                                     "type": "string",
                                     "description": "Stable action ID, such as shorter.",
                                 },
+                                "interaction_ref": {
+                                    "type": "string",
+                                    "description": "Persistent discord-ui modal reference.",
+                                },
                                 "label": {
                                     "type": "string",
                                     "description": "Human-readable button label.",
@@ -388,6 +392,7 @@ def register(ctx: Any) -> None:
                             "type": "object",
                             "properties": {
                                 "id": {"type": "string"},
+                                "interaction_ref": {"type": "string"},
                                 "label": {"type": "string"},
                                 "emoji": {"type": "string"},
                                 "style": {
@@ -438,6 +443,7 @@ def register(ctx: Any) -> None:
                             "type": "object",
                             "properties": {
                                 "id": {"type": "string"},
+                                "interaction_ref": {"type": "string"},
                                 "label": {"type": "string"},
                                 "emoji": {"type": "string"},
                                 "style": {

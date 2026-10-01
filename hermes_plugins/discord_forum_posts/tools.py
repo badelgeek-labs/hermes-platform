@@ -20,7 +20,9 @@ MAX_MESSAGE_LENGTH = 2_000
 MAX_ACTIONS = 25
 MAX_ACTION_LABEL_LENGTH = 80
 ACTION_CUSTOM_ID_PREFIX = "hermes-forum-posts:v1:"
+DISCORD_UI_CUSTOM_ID_PREFIX = "hermes-discord-ui:v1:"
 ACTION_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+INTERACTION_REF_PATTERN = re.compile(r"^mui_[A-Za-z0-9_-]{1,75}$")
 BUTTON_STYLES = {
     "primary": 1,
     "secondary": 2,
@@ -295,14 +297,7 @@ class DiscordForumPostsClient:
                     "action style must be primary, secondary, success, danger, or link."
                 )
             action_id = action.get("id")
-            if style != "link" and (
-                not isinstance(action_id, str)
-                or not ACTION_ID_PATTERN.fullmatch(action_id)
-            ):
-                raise DiscordApiError(
-                    "Each action id must start with a letter and contain only letters, "
-                    "numbers, hyphens, or underscores."
-                )
+            interaction_ref = action.get("interaction_ref")
             if action_id is not None and (
                 not isinstance(action_id, str) or not ACTION_ID_PATTERN.fullmatch(action_id)
             ):
@@ -315,12 +310,26 @@ class DiscordForumPostsClient:
             if action_id is not None:
                 action_ids.add(action_id)
 
+            if interaction_ref is not None and (
+                not isinstance(interaction_ref, str)
+                or not INTERACTION_REF_PATTERN.fullmatch(interaction_ref)
+                or len(DISCORD_UI_CUSTOM_ID_PREFIX) + len(interaction_ref) > 100
+            ):
+                raise DiscordApiError("interaction_ref must be a valid discord-ui interaction ref.")
+
             url = action.get("url")
             if style == "link":
+                if action_id is not None or interaction_ref is not None:
+                    raise DiscordApiError("link actions cannot define id or interaction_ref.")
                 if not isinstance(url, str) or not DiscordForumPostsClient._is_http_url(url):
                     raise DiscordApiError("link actions require an HTTP or HTTPS url.")
-            elif "url" in action:
-                raise DiscordApiError("url is only allowed for link actions.")
+            else:
+                if "url" in action:
+                    raise DiscordApiError("url is only allowed for link actions.")
+                if (action_id is None) == (interaction_ref is None):
+                    raise DiscordApiError(
+                        "Each non-link action must define exactly one of id or interaction_ref."
+                    )
 
             label = DiscordForumPostsClient._text(
                 action.get("label"), "action label", MAX_ACTION_LABEL_LENGTH
@@ -331,6 +340,8 @@ class DiscordForumPostsClient:
             normalized_action = {"label": label}
             if action_id is not None:
                 normalized_action["id"] = action_id
+            if interaction_ref is not None:
+                normalized_action["interaction_ref"] = interaction_ref
             if "style" in action:
                 normalized_action["style"] = style
             if style == "link":
@@ -361,6 +372,10 @@ class DiscordForumPostsClient:
                 }
                 if button["style"] == BUTTON_STYLES["link"]:
                     button["url"] = action["url"]
+                elif "interaction_ref" in action:
+                    button["custom_id"] = (
+                        f"{DISCORD_UI_CUSTOM_ID_PREFIX}{action['interaction_ref']}"
+                    )
                 else:
                     button["custom_id"] = f"{ACTION_CUSTOM_ID_PREFIX}{action['id']}"
                 if "emoji" in action:

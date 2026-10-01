@@ -196,7 +196,21 @@
   when: not hermes_discord_ui_gateway_injection_enabled
   register: hermes_discord_ui_gateway_injection_configuration
 
-- name: Restart Hermes after plugin changes
+- name: Determine whether Hermes plugins changed
+  ansible.builtin.set_fact:
+    hermes_plugins_changed: >-
+      {{
+        (
+          hermes_forum_posts_plugin_files.changed or
+          hermes_discord_ui_plugin_files.changed or
+          (hermes_forum_posts_plugin_configuration.changed | default(false)) or
+          (hermes_discord_ui_plugin_configuration.changed | default(false)) or
+          (hermes_forum_posts_gateway_injection_configuration.changed | default(false)) or
+          (hermes_discord_ui_gateway_injection_configuration.changed | default(false))
+        ) | bool
+      }}
+
+- name: Restart Hermes gateway after plugin changes
   ansible.builtin.command:
     argv:
       - docker
@@ -206,15 +220,9 @@
       - restart
       - hermes
   become: true
-  when: >-
-    hermes_forum_posts_plugin_files.changed or
-    hermes_discord_ui_plugin_files.changed or
-    (hermes_forum_posts_plugin_configuration.changed | default(false)) or
-    (hermes_discord_ui_plugin_configuration.changed | default(false)) or
-    (hermes_forum_posts_gateway_injection_configuration.changed | default(false)) or
-    (hermes_discord_ui_gateway_injection_configuration.changed | default(false))
+  when: hermes_plugins_changed
 
-- name: Verify Discord forum-post plugin is enabled
+- name: Verify required Discord plugins are enabled
   ansible.builtin.command:
     argv:
       - docker

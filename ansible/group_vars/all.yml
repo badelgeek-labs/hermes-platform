@@ -10,6 +10,7 @@ hermes_instances:
   - name: pomo
     discord_allowed_users:
       - '1321044380345307178' # ame
-      - '1553928084468539403' # fbo
+      #- '1553928084468539403' # fbo
+      - '910343445653114892' # fbo
     discord_free_response_channels:
       - '1552534553917136937' # forum google-reviews

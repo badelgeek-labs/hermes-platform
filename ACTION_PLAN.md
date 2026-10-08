@@ -277,6 +277,11 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
   or delete forum tags.
   - [x] Repo
   - [ ] VM
+- Copy plugin references only to `/var/lib/hermes/platform/plugins/`. Do not
+  create, copy, or remove files under `/var/lib/hermes/<name>/plugins/`; that
+  runtime content remains under Hermes control until it is explicitly migrated.
+  - [x] Repo
+  - [ ] VM
 - Add the plugin to the `plugins.enabled` list through the Hermes configuration
   CLI, preserving other enabled plugins. Do not render or replace the existing
   `config.yaml` with Ansible.

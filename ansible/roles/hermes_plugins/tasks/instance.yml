@@ -1,30 +1,4 @@
 ---
-- name: Remove retired Discord forum-tags plugin files
-  ansible.builtin.file:
-    path: '{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins/discord-forum-tags/'
-    state: absent
-  become: true
-
-- name: Install Discord forum-post plugin files
-  ansible.builtin.copy:
-    src: '{{ playbook_dir }}/../hermes_plugins/discord_forum_posts/'
-    dest: '{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins/discord-forum-posts/'
-    owner: '{{ hermes_user }}'
-    group: '{{ hermes_group }}'
-    mode: preserve
-  become: true
-  register: hermes_forum_posts_plugin_files
-
-- name: Install Discord UI plugin files
-  ansible.builtin.copy:
-    src: '{{ playbook_dir }}/../hermes_plugins/discord_ui/'
-    dest: '{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins/discord-ui/'
-    owner: '{{ hermes_user }}'
-    group: '{{ hermes_group }}'
-    mode: preserve
-  become: true
-  register: hermes_discord_ui_plugin_files
-
 - name: Read enabled Hermes plugins
   ansible.builtin.command:
     argv:
@@ -201,8 +175,6 @@
     hermes_plugins_changed: >-
       {{
         (
-          hermes_forum_posts_plugin_files.changed or
-          hermes_discord_ui_plugin_files.changed or
           (hermes_forum_posts_plugin_configuration.changed | default(false)) or
           (hermes_discord_ui_plugin_configuration.changed | default(false)) or
           (hermes_forum_posts_gateway_injection_configuration.changed | default(false)) or

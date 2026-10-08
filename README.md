@@ -117,7 +117,8 @@ sous `platform/plugins/`. Pour chaque instance, `-managed/` contient les
 répertoires `config`, `skills`, `plugins`, `workflows`, `scripts`, `templates`
 et `tests`, ainsi que `README.md` et `AGENTS.md`. Il est monté en lecture-
 écriture dans le conteneur sous `/mnt/hermes/<name>`; platform reste en lecture
-seule. Les plugins runtime existants restent sous `/opt/data/plugins`.
+seule. Les plugins runtime existants restent sous `/opt/data/plugins`; Ansible
+ne crée, ne copie ni ne supprime leur contenu.
 
 Le répertoire de plateforme est géré par Ansible avec les privilèges élevés.
 Le compte système `hermes`, sans accès SSH ni sudo, possède les espaces de

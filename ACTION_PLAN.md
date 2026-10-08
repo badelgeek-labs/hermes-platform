@@ -241,8 +241,11 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
 - Mount `/var/lib/hermes/platform/` read-only at `/mnt/hermes/platform` and
   `/var/lib/hermes/<name>-managed/` read-write at `/mnt/hermes/<name>` for
   managed components. Initialize the latter as a local Git repository owned
-  by `hermes` when one is absent, with only a generic `.gitignore` and no remote
-  or business content; preserve an existing repository and its local state.
+  by `hermes` when one is absent, with a generic `.gitignore`, directory
+  markers, and the initial `chore: initialize Hermes instance workspace`
+  commit when it has no prior history, no remote, and only bootstrap files.
+  Do not add a remote or business content; preserve any other repository and
+  its local state.
   - [x] Repo
   - [ ] VM
 - Keep generated Compose files in `/opt/hermes/<name>/`, outside the managed

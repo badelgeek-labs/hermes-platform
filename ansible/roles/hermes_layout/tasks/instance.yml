@@ -80,7 +80,36 @@
   register: hermes_managed_repository_init
   when: hermes_managed_repository_probe.rc != 0
 
-- name: Add the initial ignore rules to a newly initialized managed repository
+- name: Check whether the managed repository has an initial commit
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      - rev-parse
+      - --verify
+      - HEAD
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: hermes_managed_repository_head
+
+- name: List managed repository remotes before bootstrap
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      - remote
+  changed_when: false
+  when: hermes_managed_repository_head.rc != 0
+  register: hermes_managed_repository_remotes
+
+- name: Add initial ignore rules to an uncommitted managed repository
   become: true
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/templates/hermes-managed.gitignore"
@@ -89,7 +118,9 @@
     group: "{{ hermes_group }}"
     mode: "0644"
     force: false
-  when: hermes_managed_repository_init is changed
+  when:
+    - hermes_managed_repository_head.rc != 0
+    - hermes_managed_repository_remotes.stdout_lines | default([]) | length == 0
 
 - name: Create Hermes managed README when absent
   become: true
@@ -128,3 +159,114 @@
     - scripts
     - templates
     - tests
+
+- name: Define the managed repository bootstrap paths
+  ansible.builtin.set_fact:
+    hermes_managed_bootstrap_paths:
+      - .gitignore
+      - README.md
+      - AGENTS.md
+      - config/.gitkeep
+      - skills/.gitkeep
+      - plugins/.gitkeep
+      - workflows/.gitkeep
+      - scripts/.gitkeep
+      - templates/.gitkeep
+      - tests/.gitkeep
+
+- name: List uncommitted managed repository files
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      - status
+      - --porcelain
+      - --untracked-files=all
+  changed_when: false
+  when:
+    - hermes_managed_repository_head.rc != 0
+    - hermes_managed_repository_remotes.stdout_lines | default([]) | length == 0
+  register: hermes_managed_repository_status
+
+- name: Determine whether the managed repository is safe to bootstrap
+  ansible.builtin.set_fact:
+    hermes_managed_bootstrap_safe: >-
+      {{
+        hermes_managed_repository_head.rc != 0 and
+        (hermes_managed_repository_remotes.stdout_lines | default([]) | length == 0) and
+        (
+          (
+            hermes_managed_repository_status.stdout_lines
+            | map('regex_replace', '^.. ', '')
+            | list
+            | difference(hermes_managed_bootstrap_paths)
+            | length
+          ) == 0
+        )
+      }}
+  when:
+    - hermes_managed_repository_head.rc != 0
+    - hermes_managed_repository_remotes.stdout_lines | default([]) | length == 0
+
+- name: Stage the managed repository bootstrap files
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      - add
+      - --
+      - .gitignore
+      - README.md
+      - AGENTS.md
+      - config/.gitkeep
+      - skills/.gitkeep
+      - plugins/.gitkeep
+      - workflows/.gitkeep
+      - scripts/.gitkeep
+      - templates/.gitkeep
+      - tests/.gitkeep
+  changed_when: false
+  when: hermes_managed_bootstrap_safe | default(false) | bool
+
+- name: Check for staged managed repository bootstrap files
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      - diff
+      - --cached
+      - --quiet
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: hermes_managed_bootstrap_staged_changes
+  when: hermes_managed_bootstrap_safe | default(false) | bool
+
+- name: Commit the managed repository bootstrap
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - -c
+      - "user.name={{ hermes_managed_bootstrap_author_name }}"
+      - -c
+      - "user.email={{ hermes_managed_bootstrap_author_email }}"
+      - -C
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      - commit
+      - --message
+      - "{{ hermes_managed_bootstrap_commit_message }}"
+  register: hermes_managed_bootstrap_commit
+  when:
+    - hermes_managed_bootstrap_safe | default(false) | bool
+    - hermes_managed_bootstrap_staged_changes.rc == 1

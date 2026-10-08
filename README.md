@@ -123,10 +123,13 @@ Le répertoire de plateforme est géré par Ansible avec les privilèges élevé
 Le compte système `hermes`, sans accès SSH ni sudo, possède les espaces de
 données, composants et sauvegardes. Le dépôt Git local de
 `<name>-managed` est initialisé s'il n'existe pas, avec un `.gitignore`
-générique pour les secrets, l'état runtime et les caches; aucun contenu métier
-ni remote n'est ajouté. Un dépôt déjà présent n'est jamais réinitialisé ni
-modifié. Chaque instance garde son propre répertoire runtime et son projet
-Compose `hermes-<name>`. Pour Pomo,
+générique pour les secrets, l'état runtime et les caches. Ansible crée le
+commit initial `chore: initialize Hermes instance workspace` si le dépôt n'a
+pas encore de commit, n'a pas de remote et ne contient que les fichiers
+bootstrap attendus. Une relance peut donc finaliser ce commit. Aucun contenu
+métier n'est ajouté, et un dépôt existant qui ne satisfait pas ces conditions
+n'est jamais réinitialisé ni modifié. Chaque instance garde son propre
+répertoire runtime et son projet Compose `hermes-<name>`. Pour Pomo,
 `/var/lib/hermes/pomo/.env`, `auth.json` et `SOUL.md` restent hors Git avec des
 droits restreints. Le détail est documenté dans `ACTION_PLAN.md`.
 

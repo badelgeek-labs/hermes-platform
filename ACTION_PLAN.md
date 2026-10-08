@@ -282,15 +282,17 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
   runtime content remains under Hermes control until it is explicitly migrated.
   - [x] Repo
   - [ ] VM
-- Add the plugin to the `plugins.enabled` list through the Hermes configuration
-  CLI, preserving other enabled plugins. Do not render or replace the existing
-  `config.yaml` with Ansible.
+- Add `platform/discord-forum-posts` and `platform/discord-ui` to the
+  `plugins.enabled` list through the Hermes configuration CLI, preserving other
+  enabled plugins. Do not render or replace the existing `config.yaml` with
+  Ansible.
   - [x] Repo
   - [ ] VM
-- Explicitly allow `discord-forum-posts` to create or reuse a Hermes gateway
-  session when a button is clicked, then inject the button-click event. This
-  lets posts created by automation remain sessionless until somebody interacts
-  with them; the plugin still does not define the business meaning of an action.
+- Explicitly allow `platform/discord-forum-posts` to create or reuse a Hermes
+  gateway session when a button is clicked, then inject the button-click event.
+  This lets posts created by automation remain sessionless until somebody
+  interacts with them; the plugin still does not define the business meaning of
+  an action.
   - [x] Repo
   - [ ] VM
 - In Discord, grant the Hermes bot role **Create Posts**, **Send Messages in

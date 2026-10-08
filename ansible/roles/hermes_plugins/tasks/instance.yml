@@ -28,28 +28,27 @@
     hermes_enabled_plugins_list: >-
       {{ hermes_enabled_plugins.stdout | default('[]', true) | from_json }}
 
-- name: Add Discord forum-post plugin to the enabled list
-  ansible.builtin.command:
-    argv:
-      - docker
-      - compose
-      - --file
-      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
-      - exec
-      - --no-TTY
-      - --user
-      - '{{ hermes_runtime_uid }}:{{ hermes_runtime_gid }}'
-      - hermes
-      - hermes
-      - config
-      - set
-      - plugins.enabled
-      - '{{ (hermes_enabled_plugins_list + ["discord-forum-posts"]) | unique | to_json }}'
-  become: true
-  when: "'discord-forum-posts' not in hermes_enabled_plugins_list"
-  register: hermes_forum_posts_plugin_configuration
+- name: Define Hermes platform plugin identifiers
+  ansible.builtin.set_fact:
+    hermes_platform_plugin_ids:
+      - platform/discord-forum-posts
+      - platform/discord-ui
+    hermes_legacy_platform_plugin_ids:
+      - discord-forum-posts
+      - discord-ui
 
-- name: Add Discord UI plugin to the enabled list
+- name: Normalize enabled Hermes platform plugins
+  ansible.builtin.set_fact:
+    hermes_desired_enabled_plugins: >-
+      {{
+        (
+          hermes_enabled_plugins_list
+          | difference(hermes_legacy_platform_plugin_ids)
+          + hermes_platform_plugin_ids
+        ) | unique
+      }}
+
+- name: Enable Hermes platform plugins
   ansible.builtin.command:
     argv:
       - docker
@@ -65,10 +64,10 @@
       - config
       - set
       - plugins.enabled
-      - '{{ (hermes_enabled_plugins_list + ["discord-forum-posts", "discord-ui"]) | unique | to_json }}'
+      - '{{ hermes_desired_enabled_plugins | to_json }}'
   become: true
-  when: "'discord-ui' not in hermes_enabled_plugins_list"
-  register: hermes_discord_ui_plugin_configuration
+  when: hermes_enabled_plugins_list != hermes_desired_enabled_plugins
+  register: hermes_platform_plugins_configuration
 
 - name: Read Discord forum-post gateway-injection permission
   ansible.builtin.command:
@@ -85,13 +84,13 @@
       - hermes
       - config
       - get
-      - plugins.entries.discord-forum-posts.allow_gateway_injection
+      - plugins.entries.platform/discord-forum-posts.allow_gateway_injection
       - --json
   become: true
   changed_when: false
   failed_when: >-
     hermes_forum_posts_gateway_injection.rc != 0 and
-    'Config key not set: plugins.entries.discord-forum-posts.allow_gateway_injection' not in hermes_forum_posts_gateway_injection.stderr
+    'Config key not set: plugins.entries.platform/discord-forum-posts.allow_gateway_injection' not in hermes_forum_posts_gateway_injection.stderr
   register: hermes_forum_posts_gateway_injection
 
 - name: Decode Discord forum-post gateway-injection permission
@@ -114,7 +113,7 @@
       - hermes
       - config
       - set
-      - plugins.entries.discord-forum-posts.allow_gateway_injection
+      - plugins.entries.platform/discord-forum-posts.allow_gateway_injection
       - 'true'
   become: true
   when: not hermes_forum_posts_gateway_injection_enabled
@@ -135,13 +134,13 @@
       - hermes
       - config
       - get
-      - plugins.entries.discord-ui.allow_gateway_injection
+      - plugins.entries.platform/discord-ui.allow_gateway_injection
       - --json
   become: true
   changed_when: false
   failed_when: >-
     hermes_discord_ui_gateway_injection.rc != 0 and
-    'Config key not set: plugins.entries.discord-ui.allow_gateway_injection' not in hermes_discord_ui_gateway_injection.stderr
+    'Config key not set: plugins.entries.platform/discord-ui.allow_gateway_injection' not in hermes_discord_ui_gateway_injection.stderr
   register: hermes_discord_ui_gateway_injection
 
 - name: Decode Discord UI gateway-injection permission
@@ -164,7 +163,7 @@
       - hermes
       - config
       - set
-      - plugins.entries.discord-ui.allow_gateway_injection
+      - plugins.entries.platform/discord-ui.allow_gateway_injection
       - 'true'
   become: true
   when: not hermes_discord_ui_gateway_injection_enabled
@@ -175,8 +174,7 @@
     hermes_plugins_changed: >-
       {{
         (
-          (hermes_forum_posts_plugin_configuration.changed | default(false)) or
-          (hermes_discord_ui_plugin_configuration.changed | default(false)) or
+          (hermes_platform_plugins_configuration.changed | default(false)) or
           (hermes_forum_posts_gateway_injection_configuration.changed | default(false)) or
           (hermes_discord_ui_gateway_injection_configuration.changed | default(false))
         ) | bool
@@ -213,5 +211,5 @@
   changed_when: false
   register: hermes_plugins_list
   failed_when: >-
-    'discord-forum-posts' not in hermes_plugins_list.stdout or
-    'discord-ui' not in hermes_plugins_list.stdout
+    'platform/discord-forum-posts' not in hermes_plugins_list.stdout or
+    'platform/discord-ui' not in hermes_plugins_list.stdout

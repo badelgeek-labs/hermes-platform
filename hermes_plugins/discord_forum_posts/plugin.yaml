@@ -1,5 +1,5 @@
 name: discord-forum-posts
-version: "1.3.0"
+version: "1.4.0"
 description: Create, edit, and delete Discord forum posts; manage existing forum tags; and send messages with generic action or link buttons.
 author: Hermes Platform
 requires_env:

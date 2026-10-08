@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -11,7 +12,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from discord_forum_posts.tools import DiscordApiError, DiscordForumPostsClient
-from discord_forum_posts import _wire_discord_component_actions
+from discord_forum_posts import _wire_discord_component_actions, register
+from discord_forum_posts.component_actions import ComponentActionStatuses
 
 
 class FakeClient(DiscordForumPostsClient):
@@ -58,6 +60,8 @@ class FakeResponse:
 
     async def send_message(self, content: str, *, ephemeral: bool) -> None:
         self.messages.append((content, ephemeral))
+        if self.events is not None:
+            self.events.append("ack")
 
     async def defer(self, *, ephemeral: bool, thinking: bool) -> None:
         self.deferred.append((ephemeral, thinking))
@@ -66,15 +70,24 @@ class FakeResponse:
 
 
 class FakeContext:
-    def __init__(self, events: list[str] | None = None) -> None:
+    def __init__(self, events: list[str] | None = None, *, accepted: bool = True) -> None:
         self.injected: list[tuple[str, str]] = []
         self.events = events
+        self.accepted = accepted
+        self.tools: dict[str, dict[str, object]] = {}
+        self.platform_handlers: dict[str, object] = {}
 
     def inject_message(self, content: str, *, session_key: str) -> bool:
         self.injected.append((content, session_key))
         if self.events is not None:
             self.events.append("inject")
-        return True
+        return self.accepted
+
+    def register_tool(self, *, name: str, **kwargs: object) -> None:
+        self.tools[name] = kwargs
+
+    def register_platform_handler(self, platform: str, handler: object) -> None:
+        self.platform_handlers[platform] = handler
 
 
 class FakeAsyncSessionStore:
@@ -469,34 +482,50 @@ class DiscordForumPostsClientTests(unittest.TestCase):
         )
         self.assertEqual(client.requests[-1], ("DELETE", "/channels/200", None))
 
-    def test_button_click_injects_a_descriptive_action_event(self) -> None:
+    def test_component_action_is_immediately_acknowledged_and_can_complete(self) -> None:
         events: list[str] = []
         context = FakeContext(events)
         bot = FakeBot()
         adapter = FakeAdapter(events)
         interaction = fake_interaction(events=events)
 
-        with patch.dict("os.environ", {"DISCORD_ALLOWED_USERS": "123"}, clear=False):
-            _wire_discord_component_actions(context, bot, adapter)
-            asyncio.run(bot.listeners[0](interaction))
+        async def run_action() -> None:
+            with patch.dict("os.environ", {"DISCORD_ALLOWED_USERS": "123"}, clear=False):
+                register(context)
+                context.platform_handlers["discord"](bot, adapter)
+                await bot.listeners[0](interaction)
+                interaction_ref = next(
+                    line.removeprefix("interaction_ref=")
+                    for line in context.injected[0][0].splitlines()
+                    if line.startswith("interaction_ref=")
+                )
+                completion_result = context.tools["discord_complete_component_action"]["handler"](
+                    {"interaction_ref": interaction_ref, "success": True}
+                )
+                self.assertEqual(json.loads(completion_result), {"completed": True, "ok": True})
+                await asyncio.sleep(0)
+                await asyncio.sleep(0)
+
+        asyncio.run(run_action())
 
         self.assertEqual(bot.event_name, "on_interaction")
+        self.assertEqual(len(context.injected), 1)
+        action_event, session_key = context.injected[0]
+        self.assertEqual(session_key, "test-session")
+        event_lines = action_event.splitlines()
         self.assertEqual(
-            context.injected,
+            event_lines[:3],
             [
-                (
-                    "[DISCORD_COMPONENT_ACTION]\n"
-                    "action_id=shorter\n"
-                    "action_label=Plus courte\n"
-                    "thread_id=456\n"
-                    "actor_id=123",
-                    "test-session",
-                )
+                "[DISCORD_COMPONENT_ACTION]",
+                "action_id=shorter",
+                "action_label=Plus courte",
             ],
         )
-        self.assertEqual(interaction.response.deferred, [(True, True)])
-        self.assertEqual(interaction.edited_messages, ["Action transmise"])
-        self.assertEqual(events, ["defer", "session", "inject"])
+        self.assertTrue(event_lines[3].startswith("interaction_ref=dca_"))
+        self.assertEqual(event_lines[4:], ["thread_id=456", "actor_id=123"])
+        self.assertEqual(interaction.response.messages, [("⏳ Action: Plus courte", True)])
+        self.assertEqual(interaction.edited_messages, ["✅ Action: Plus courte"])
+        self.assertEqual(events, ["ack", "session", "inject"])
         self.assertEqual(adapter.source["chat_id"], "456")
         self.assertEqual(adapter.source["thread_id"], "456")
         self.assertEqual(adapter.source["parent_chat_id"], "789")
@@ -504,6 +533,47 @@ class DiscordForumPostsClientTests(unittest.TestCase):
             adapter.gateway_runner.async_session_store.calls,
             [(adapter.source, False)],
         )
+
+    def test_component_action_can_complete_as_failed(self) -> None:
+        context = FakeContext()
+        bot = FakeBot()
+        adapter = FakeAdapter()
+        interaction = fake_interaction()
+
+        async def run_action() -> None:
+            with patch.dict("os.environ", {"DISCORD_ALLOWED_USERS": "123"}, clear=False):
+                statuses = _wire_discord_component_actions(context, bot, adapter)
+                await bot.listeners[0](interaction)
+                interaction_ref = next(
+                    line.removeprefix("interaction_ref=")
+                    for line in context.injected[0][0].splitlines()
+                    if line.startswith("interaction_ref=")
+                )
+                self.assertTrue(await statuses.complete(interaction_ref, success=False))
+
+        asyncio.run(run_action())
+
+        self.assertEqual(interaction.response.messages, [("⏳ Action: Plus courte", True)])
+        self.assertEqual(interaction.edited_messages, ["❌ Action: Plus courte"])
+
+    def test_component_action_timeout_completes_as_failed(self) -> None:
+        context = FakeContext()
+        bot = FakeBot()
+        adapter = FakeAdapter()
+        interaction = fake_interaction()
+
+        async def run_action() -> None:
+            with patch.dict("os.environ", {"DISCORD_ALLOWED_USERS": "123"}, clear=False):
+                statuses = ComponentActionStatuses(timeout_seconds=0)
+                _wire_discord_component_actions(context, bot, adapter, statuses)
+                await bot.listeners[0](interaction)
+                await asyncio.sleep(0)
+                await asyncio.sleep(0)
+
+        asyncio.run(run_action())
+
+        self.assertEqual(interaction.response.messages, [("⏳ Action: Plus courte", True)])
+        self.assertEqual(interaction.edited_messages, ["❌ Action: Plus courte"])
 
     def test_link_click_does_not_inject_an_hermes_event(self) -> None:
         context = FakeContext()

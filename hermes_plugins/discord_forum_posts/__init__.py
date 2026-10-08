@@ -8,6 +8,7 @@ import os
 import time
 from typing import Any
 
+from .component_actions import ComponentActionStatuses
 from .tools import (
     ACTION_CUSTOM_ID_PREFIX,
     DiscordApiError,
@@ -75,21 +76,30 @@ async def _session_key_for_forum_post(adapter: Any, interaction: Any) -> str:
 
 
 def _component_action_event(
-    action_id: str, action_label: str, thread_id: str, actor_id: str
+    action_id: str,
+    action_label: str,
+    interaction_ref: str,
+    thread_id: str,
+    actor_id: str,
 ) -> str:
     return "\n".join(
         [
             "[DISCORD_COMPONENT_ACTION]",
             f"action_id={action_id}",
             f"action_label={action_label}",
+            f"interaction_ref={interaction_ref}",
             f"thread_id={thread_id}",
             f"actor_id={actor_id}",
         ]
     )
 
 
-def _wire_discord_component_actions(ctx: Any, bot: Any, adapter: Any) -> None:
+def _wire_discord_component_actions(
+    ctx: Any, bot: Any, adapter: Any, statuses: ComponentActionStatuses | None = None
+) -> ComponentActionStatuses:
     """Register one scoped native Discord listener for this plugin's buttons."""
+
+    statuses = statuses or ComponentActionStatuses()
 
     async def on_interaction(interaction: Any) -> None:
         data = getattr(interaction, "data", None) or {}
@@ -98,9 +108,10 @@ def _wire_discord_component_actions(ctx: Any, bot: Any, adapter: Any) -> None:
             return
 
         action_id = custom_id.removeprefix(ACTION_CUSTOM_ID_PREFIX)
+        action_label = _action_label(interaction, custom_id) or action_id
         acknowledgement_started = time.perf_counter()
         try:
-            await interaction.response.defer(ephemeral=True, thinking=True)
+            interaction_ref = await statuses.acknowledge(interaction, action_label)
         except Exception:
             logger.exception(
                 "Failed to acknowledge Discord forum action %s after %.3fs",
@@ -114,53 +125,45 @@ def _wire_discord_component_actions(ctx: Any, bot: Any, adapter: Any) -> None:
             time.perf_counter() - acknowledgement_started,
         )
 
-        message_author = getattr(getattr(interaction, "message", None), "author", None)
-        if (
-            message_author is None
-            or getattr(bot, "user", None) is None
-            or getattr(message_author, "id", None) != getattr(bot.user, "id", None)
-        ):
-            await interaction.edit_original_response(
-                content="This action is not managed by this Hermes bot."
-            )
-            return
-
-        actor_id = str(interaction.user.id)
-        if actor_id not in _allowed_user_ids():
-            await interaction.edit_original_response(
-                content="You are not authorized to use this action."
-            )
-            return
-
-        action_label = _action_label(interaction, custom_id)
-        if not action_label:
-            await interaction.edit_original_response(
-                content="The action label could not be read."
-            )
-            return
-
-        session_lookup_started = time.perf_counter()
         try:
-            session_key = await _session_key_for_forum_post(adapter, interaction)
-        except Exception:
-            logger.exception(
-                "Failed to find a Hermes session for Discord forum action %s after %.3fs",
-                action_id,
-                time.perf_counter() - session_lookup_started,
-            )
-            accepted = False
-        else:
+            message_author = getattr(getattr(interaction, "message", None), "author", None)
+            if (
+                message_author is None
+                or getattr(bot, "user", None) is None
+                or getattr(message_author, "id", None) != getattr(bot.user, "id", None)
+            ):
+                await statuses.complete(interaction_ref, success=False)
+                return
+
+            actor_id = str(interaction.user.id)
+            if actor_id not in _allowed_user_ids():
+                await statuses.complete(interaction_ref, success=False)
+                return
+
+            session_lookup_started = time.perf_counter()
+            try:
+                session_key = await _session_key_for_forum_post(adapter, interaction)
+            except Exception:
+                logger.exception(
+                    "Failed to find a Hermes session for Discord forum action %s after %.3fs",
+                    action_id,
+                    time.perf_counter() - session_lookup_started,
+                )
+                await statuses.complete(interaction_ref, success=False)
+                return
             logger.info(
                 "Found Hermes session for Discord forum action %s in %.3fs",
                 action_id,
                 time.perf_counter() - session_lookup_started,
             )
+
             injection_started = time.perf_counter()
             try:
                 accepted = ctx.inject_message(
                     _component_action_event(
                         action_id=action_id,
                         action_label=action_label,
+                        interaction_ref=interaction_ref,
                         thread_id=str(interaction.channel_id),
                         actor_id=actor_id,
                     ),
@@ -180,16 +183,20 @@ def _wire_discord_component_actions(ctx: Any, bot: Any, adapter: Any) -> None:
                     time.perf_counter() - injection_started,
                     accepted,
                 )
-
-        await interaction.edit_original_response(
-            content="Action transmise" if accepted else "The action could not be delivered."
-        )
+            if not accepted:
+                await statuses.complete(interaction_ref, success=False)
+        except Exception:
+            logger.exception("Unexpected Discord forum action failure %s", action_id)
+            await statuses.complete(interaction_ref, success=False)
 
     bot.add_listener(on_interaction, "on_interaction")
+    return statuses
 
 
 def register(ctx: Any) -> None:
     """Register generic tools that only use tags defined on a parent forum."""
+
+    statuses = ComponentActionStatuses()
 
     def list_forum_tags(params: dict[str, Any], **kwargs: Any) -> str:
         del kwargs
@@ -276,6 +283,41 @@ def register(ctx: Any) -> None:
         except (DiscordApiError, KeyError, TypeError, ValueError) as error:
             return _json_result({"ok": False, "error": str(error)})
 
+    def complete_component_action(params: dict[str, Any], **kwargs: Any) -> str:
+        del kwargs
+        interaction_ref = params.get("interaction_ref")
+        success = params.get("success")
+        if not isinstance(interaction_ref, str) or not isinstance(success, bool):
+            return _json_result({"ok": False, "error": "interaction_ref and success are required."})
+        completed = statuses.complete_from_tool(interaction_ref, success)
+        return _json_result({"ok": completed, "completed": completed})
+
+    ctx.register_tool(
+        name="discord_complete_component_action",
+        toolset="discord_forum_posts",
+        schema={
+            "name": "discord_complete_component_action",
+            "description": (
+                "Finalize the ephemeral status for a generic Discord component action. "
+                "Use the interaction_ref supplied in its action event."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "interaction_ref": {
+                        "type": "string",
+                        "description": "Correlation reference from DISCORD_COMPONENT_ACTION.",
+                    },
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the downstream action finished successfully.",
+                    },
+                },
+                "required": ["interaction_ref", "success"],
+            },
+        },
+        handler=complete_component_action,
+    )
     ctx.register_tool(
         name="discord_list_forum_tags",
         toolset="discord_forum_posts",
@@ -525,6 +567,5 @@ def register(ctx: Any) -> None:
         handler=delete_forum_post,
     )
     ctx.register_platform_handler(
-        "discord",
-        lambda bot, adapter: _wire_discord_component_actions(ctx, bot, adapter),
+        "discord", lambda bot, adapter: _wire_discord_component_actions(ctx, bot, adapter, statuses)
     )

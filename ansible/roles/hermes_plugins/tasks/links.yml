@@ -104,3 +104,14 @@
   loop_control:
     label: "{{ item.item.name }}"
   when: not item.stat.exists
+  register: hermes_plugin_category_links
+
+- name: Record instances whose plugin links changed
+  ansible.builtin.set_fact:
+    hermes_plugin_links_changed_instances: >-
+      {{
+        (hermes_plugin_links_changed_instances | default([]))
+        + ([hermes_instance.name] if
+           (hermes_plugin_category_links.results | selectattr('changed') | list | length > 0)
+           else [])
+      }}

@@ -176,7 +176,10 @@
         (
           (hermes_platform_plugins_configuration.changed | default(false)) or
           (hermes_forum_posts_gateway_injection_configuration.changed | default(false)) or
-          (hermes_discord_ui_gateway_injection_configuration.changed | default(false))
+          (hermes_discord_ui_gateway_injection_configuration.changed | default(false)) or
+          hermes_forum_posts_plugin_files.changed or
+          hermes_discord_ui_plugin_files.changed or
+          hermes_instance.name in (hermes_plugin_links_changed_instances | default([]))
         ) | bool
       }}
 

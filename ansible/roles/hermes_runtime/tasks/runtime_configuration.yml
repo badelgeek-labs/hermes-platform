@@ -27,6 +27,7 @@
     mode: '0600'
   become: true
   no_log: true
+  register: hermes_runtime_environment
 
 - name: Render Hermes instance identity
   ansible.builtin.copy:
@@ -41,3 +42,14 @@
     mode: '0600'
   become: true
   no_log: true
+  register: hermes_runtime_identity
+
+- name: Record instances whose runtime files changed
+  ansible.builtin.set_fact:
+    hermes_runtime_changed_instances: >-
+      {{
+        (hermes_runtime_changed_instances | default([]))
+        + ([hermes_instance.name] if
+           (hermes_runtime_environment.changed or hermes_runtime_identity.changed)
+           else [])
+      }}

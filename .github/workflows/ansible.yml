@@ -6,6 +6,7 @@ on:
 env:
   DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
   DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+  ANSIBLE_PIPELINING: 'true'
 
 jobs:
   ansible:

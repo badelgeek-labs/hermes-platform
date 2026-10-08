@@ -165,10 +165,16 @@ répertoire de données de l'instance à `/opt/data` en lecture-écriture. Il mo
 écriture à `/mnt/hermes/<name>`. Le Compose reste dans `/opt/hermes/<name>/`,
 hors du futur dépôt managed. Aucun port ni socket Docker n'est exposé. Le rôle
 `hermes_deployment` rend ce modèle avec l'UID/GID réel du compte système
-`hermes`, converge uniquement le projet ciblé et vérifie que le service tourne
+`hermes`, lance Compose seulement si sa définition ou les fichiers runtime ont
+changé, ou si le service ne tourne pas, puis vérifie que le service tourne
 et que les trois bind mounts apparaissent dans les mounts du conteneur avec les
 chemins et modes attendus. Le rôle `hermes_runtime` récupère ces deux valeurs
 dynamiquement : aucun UID/GID n'est écrit en dur.
+
+Une modification de `.env` ou de `SOUL.md` recrée le conteneur pour appliquer
+immédiatement la nouvelle configuration. Une modification des fichiers ou des
+liens de plugins redémarre le gateway. Ansible utilise le pipelining SSH pour
+réduire le nombre d'allers-retours lors de l'exécution des tâches.
 
 Après le déploiement, le contrôle Ansible inspecte les mounts du conteneur. Pour
 un contrôle manuel, depuis `/opt/hermes/<name>/`, exécuter :

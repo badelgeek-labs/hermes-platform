@@ -27,6 +27,7 @@
     group: '{{ hermes_group }}'
     mode: preserve
   become: true
+  register: hermes_forum_posts_plugin_files
 
 - name: Install shared Discord UI plugin files
   ansible.builtin.copy:
@@ -36,3 +37,4 @@
     group: '{{ hermes_group }}'
     mode: preserve
   become: true
+  register: hermes_discord_ui_plugin_files

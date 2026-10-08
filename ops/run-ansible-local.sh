@@ -58,6 +58,8 @@ fi
 
 echo "Running Ansible in $mode mode against $DEPLOY_USER@$DEPLOY_HOST"
 
+export ANSIBLE_PIPELINING="${ANSIBLE_PIPELINING:-true}"
+
 exec ansible-playbook \
   -i "${DEPLOY_HOST}," \
   -u "$DEPLOY_USER" \

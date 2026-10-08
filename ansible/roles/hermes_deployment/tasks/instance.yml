@@ -7,41 +7,9 @@
     group: root
     mode: '0644'
   become: true
+  register: hermes_compose_definition
 
-- name: Ensure Hermes Compose project is running
-  ansible.builtin.command:
-    argv:
-      - docker
-      - compose
-      - --file
-      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
-      - up
-      - --detach
-  become: true
-  changed_when: false
-
-- name: List running Hermes Compose services
-  ansible.builtin.command:
-    argv:
-      - docker
-      - compose
-      - --file
-      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
-      - ps
-      - --status
-      - running
-      - --services
-  become: true
-  changed_when: false
-  register: hermes_running_services
-
-- name: Verify Hermes service is running
-  ansible.builtin.assert:
-    that:
-      - "'hermes' in hermes_running_services.stdout_lines"
-    fail_msg: 'Hermes service is not running for instance {{ hermes_instance.name }}.'
-
-- name: Get Hermes container ID
+- name: Find the running Hermes container
   ansible.builtin.command:
     argv:
       - docker
@@ -50,10 +18,54 @@
       - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
       - ps
       - --quiet
+      - --status
+      - running
+      - hermes
+  become: true
+  changed_when: false
+  register: hermes_running_container_before
+
+- name: Start or update the Hermes Compose project when needed
+  ansible.builtin.command:
+    argv: >-
+      {{
+        ['docker', 'compose', '--file',
+         hermes_platform_root ~ '/' ~ hermes_instance.name ~ '/compose.yaml',
+         'up', '--detach']
+        + (['--force-recreate'] if hermes_instance.name in
+           (hermes_runtime_changed_instances | default([])) else [])
+      }}
+  become: true
+  when: >-
+    hermes_compose_definition.changed or
+    hermes_instance.name in (hermes_runtime_changed_instances | default([])) or
+    hermes_running_container_before.stdout | length == 0
+  register: hermes_compose_update
+
+- name: Get the running Hermes container ID
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - ps
+      - --quiet
+      - --status
+      - running
       - hermes
   become: true
   changed_when: false
   register: hermes_container_id
+  when: hermes_compose_update.changed | default(false)
+
+- name: Verify Hermes service is running
+  ansible.builtin.assert:
+    that:
+      - >-
+        (hermes_container_id.stdout if hermes_compose_update.changed | default(false)
+         else hermes_running_container_before.stdout) | length > 0
+    fail_msg: 'Hermes service is not running for instance {{ hermes_instance.name }}.'
 
 - name: Inspect Hermes container mounts
   ansible.builtin.command:
@@ -62,7 +74,9 @@
       - inspect
       - --format
       - '{{ "{{" }} json .Mounts {{ "}}" }}'
-      - '{{ hermes_container_id.stdout }}'
+      - >-
+        {{ hermes_container_id.stdout if hermes_compose_update.changed | default(false)
+           else hermes_running_container_before.stdout }}
   become: true
   changed_when: false
   register: hermes_container_mounts_raw

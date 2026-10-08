@@ -4,6 +4,7 @@ hermes_user: hermes
 hermes_group: hermes
 hermes_platform_root: /opt/hermes
 hermes_data_root: /var/lib/hermes
+hermes_managed_platform_root: "{{ hermes_data_root }}/platform"
 hermes_backups_root: /var/backups/hermes
 
 hermes_instances:

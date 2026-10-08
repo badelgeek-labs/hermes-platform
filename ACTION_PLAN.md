@@ -234,8 +234,19 @@ Suggested commit when this phase is complete: `feat: prepare dynamic Hermes runt
   disabled with no inbound port for this deployment.
   - [x] Repo
   - [ ] VM
-- Mount only `/var/lib/hermes/<name>` at `/opt/data` for each instance's
-  persistent state.
+- Keep `/var/lib/hermes/<name>` mounted read-write at `/opt/data` as Hermes'
+  primary runtime directory; do not move existing data.
+  - [x] Repo
+  - [ ] VM
+- Mount `/var/lib/hermes/platform/` read-only at `/mnt/hermes/platform` and
+  `/var/lib/hermes/<name>-managed/` read-write at `/mnt/hermes/<name>` for
+  managed components. Initialize the latter as a local Git repository owned
+  by `hermes` when one is absent, with only a generic `.gitignore` and no remote
+  or business content; preserve an existing repository and its local state.
+  - [x] Repo
+  - [ ] VM
+- Keep generated Compose files in `/opt/hermes/<name>/`, outside the managed
+  repository, and verify all three container mounts after deployment.
   - [x] Repo
   - [ ] VM
 - Do not expose an inbound HTTP port initially; Discord uses outbound

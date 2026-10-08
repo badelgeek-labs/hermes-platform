@@ -106,14 +106,20 @@ Pour chaque `name`, le rôle crée l'arborescence suivante :
 
 ```text
 /opt/hermes/<name>/          # définition Compose, propriétaire : root:root
+/var/lib/hermes/platform/    # composants partagés, propriétaire : hermes:hermes
 /var/lib/hermes/<name>/      # données et secrets, propriétaire : hermes:hermes
+/var/lib/hermes/<name>-managed/ # composants gérés par instance, propriétaire : hermes:hermes
 /var/backups/hermes/<name>/  # sauvegardes, propriétaire : hermes:hermes
 ```
 
 Le répertoire de plateforme est géré par Ansible avec les privilèges élevés.
-Le compte système `hermes`, sans accès SSH ni sudo, possède les données et
-sauvegardes. Chaque future instance aura son propre répertoire de données et
-son projet Compose `hermes-<name>`. Pour Pomo,
+Le compte système `hermes`, sans accès SSH ni sudo, possède les espaces de
+données, composants et sauvegardes. Le dépôt Git local de
+`<name>-managed` est initialisé s'il n'existe pas, avec un `.gitignore`
+générique pour les secrets, l'état runtime et les caches; aucun contenu métier
+ni remote n'est ajouté. Un dépôt déjà présent n'est jamais réinitialisé ni
+modifié. Chaque instance garde son propre répertoire runtime et son projet
+Compose `hermes-<name>`. Pour Pomo,
 `/var/lib/hermes/pomo/.env`, `auth.json` et `SOUL.md` restent hors Git avec des
 droits restreints. Le détail est documenté dans `ACTION_PLAN.md`.
 
@@ -137,13 +143,29 @@ définit un service `hermes` par instance. Pour `pomo`, il produit le projet
 Compose `hermes-pomo`, le réseau isolé `hermes-pomo-network` et le conteneur
 généré par Compose `hermes-pomo-hermes-1`.
 
-Il utilise l'image officielle Hermes épinglée par digest, monte uniquement le
-répertoire de données de l'instance à `/opt/data`, et n'expose aucun port ni
-socket Docker. Le rôle `hermes_deployment` rend ce modèle avec l'UID/GID réel du
-compte système `hermes`, converge uniquement le projet ciblé et vérifie que son
-service tourne. Le rôle `hermes_runtime` récupère ces deux valeurs dynamiquement
-: aucun UID/GID n'est écrit en dur. Le Compose n'est pas encore appliqué à la
-VM.
+Il utilise l'image officielle Hermes épinglée par digest et conserve le
+répertoire de données de l'instance à `/opt/data` en lecture-écriture. Il monte
+également `/var/lib/hermes/platform/` en lecture seule à
+`/mnt/hermes/platform`, puis `/var/lib/hermes/<name>-managed/` en lecture-
+écriture à `/mnt/hermes/<name>`. Le Compose reste dans `/opt/hermes/<name>/`,
+hors du futur dépôt managed. Aucun port ni socket Docker n'est exposé. Le rôle
+`hermes_deployment` rend ce modèle avec l'UID/GID réel du compte système
+`hermes`, converge uniquement le projet ciblé et vérifie que le service tourne
+et que les trois bind mounts apparaissent dans les mounts du conteneur avec les
+chemins et modes attendus. Le rôle `hermes_runtime` récupère ces deux valeurs
+dynamiquement : aucun UID/GID n'est écrit en dur.
+
+Après le déploiement, le contrôle Ansible inspecte les mounts du conteneur. Pour
+un contrôle manuel, depuis `/opt/hermes/<name>/`, exécuter :
+
+```bash
+docker compose exec hermes sh -c 'mount | grep /mnt/hermes; test -d /opt/data'
+docker inspect --format '{{json .Mounts}}' "$(docker compose ps -q hermes)"
+sudo -u hermes git -C /var/lib/hermes/<name>-managed status --short --branch
+sudo -u hermes git -C /var/lib/hermes/<name>-managed remote -v
+```
+
+La dernière commande ne doit afficher aucune remote par défaut.
 
 ## Exécution du playbook
 

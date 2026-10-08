@@ -16,7 +16,49 @@
       owner: "{{ hermes_user }}"
       group: "{{ hermes_group }}"
       mode: "0700"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0700"
     - path: "{{ hermes_backups_root }}/{{ hermes_instance.name }}"
       owner: "{{ hermes_user }}"
       group: "{{ hermes_group }}"
       mode: "0700"
+
+- name: Check whether Hermes managed components already contains a Git repository
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+      - rev-parse
+      - --git-dir
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  register: hermes_managed_repository_probe
+
+- name: Initialize Hermes managed components repository when absent
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - git
+      - init
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed"
+    creates: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/.git"
+  register: hermes_managed_repository_init
+  when: hermes_managed_repository_probe.rc != 0
+
+- name: Add the initial ignore rules to a newly initialized managed repository
+  become: true
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/templates/hermes-managed.gitignore"
+    dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/.gitignore"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: "0644"
+    force: false
+  when: hermes_managed_repository_init is changed

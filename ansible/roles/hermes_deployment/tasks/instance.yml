@@ -40,3 +40,56 @@
     that:
       - "'hermes' in hermes_running_services.stdout_lines"
     fail_msg: 'Hermes service is not running for instance {{ hermes_instance.name }}.'
+
+- name: Get Hermes container ID
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --file
+      - '{{ hermes_platform_root }}/{{ hermes_instance.name }}/compose.yaml'
+      - ps
+      - --quiet
+      - hermes
+  become: true
+  changed_when: false
+  register: hermes_container_id
+
+- name: Inspect Hermes container mounts
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - '{{ "{{" }} json .Mounts {{ "}}" }}'
+      - '{{ hermes_container_id.stdout }}'
+  become: true
+  changed_when: false
+  register: hermes_container_mounts_raw
+
+- name: Verify Hermes managed and runtime mounts
+  vars:
+    hermes_container_mounts: "{{ hermes_container_mounts_raw.stdout | from_json }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        hermes_container_mounts
+        | selectattr('Source', 'equalto', hermes_managed_platform_root)
+        | selectattr('Destination', 'equalto', '/mnt/hermes/platform')
+        | selectattr('RW', 'equalto', false)
+        | list | length == 1
+      - >-
+        hermes_container_mounts
+        | selectattr('Source', 'equalto', hermes_data_root ~ '/' ~ hermes_instance.name ~ '-managed')
+        | selectattr('Destination', 'equalto', '/mnt/hermes/' ~ hermes_instance.name)
+        | selectattr('RW', 'equalto', true)
+        | list | length == 1
+      - >-
+        hermes_container_mounts
+        | selectattr('Source', 'equalto', hermes_data_root ~ '/' ~ hermes_instance.name)
+        | selectattr('Destination', 'equalto', '/opt/data')
+        | selectattr('RW', 'equalto', true)
+        | list | length == 1
+    fail_msg: >-
+      Hermes mounts do not match the required platform, managed, and runtime
+      paths for instance {{ hermes_instance.name }}.

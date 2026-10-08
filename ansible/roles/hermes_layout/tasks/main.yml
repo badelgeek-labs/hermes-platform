@@ -48,6 +48,15 @@
     - "{{ hermes_data_root }}"
     - "{{ hermes_backups_root }}"
 
+- name: Create Hermes managed platform directory
+  become: true
+  ansible.builtin.file:
+    path: "{{ hermes_managed_platform_root }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: "0750"
+
 - name: Create Hermes instance layouts
   ansible.builtin.include_tasks: instance.yml
   loop: "{{ hermes_instances }}"

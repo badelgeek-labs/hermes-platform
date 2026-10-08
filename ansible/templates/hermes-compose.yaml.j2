@@ -14,6 +14,8 @@ services:
       HERMES_GID: "{{ hermes_runtime_gid | mandatory }}"
     volumes:
       - "/var/lib/hermes/{{ hermes_instance.name }}:/opt/data"
+      - "{{ hermes_managed_platform_root }}:/mnt/hermes/platform:ro"
+      - "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed:/mnt/hermes/{{ hermes_instance.name }}"
     networks:
       - hermes
 

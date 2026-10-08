@@ -1,0 +1,106 @@
+---
+- name: Check managed plugin source directory
+  become: true
+  ansible.builtin.stat:
+    path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/plugins"
+  register: hermes_managed_plugins_source
+
+- name: Verify managed plugin source directory
+  ansible.builtin.assert:
+    that:
+      - hermes_managed_plugins_source.stat.exists
+      - hermes_managed_plugins_source.stat.isdir
+    fail_msg: >-
+      Managed plugin source directory is missing or is not a directory:
+      {{ hermes_data_root }}/{{ hermes_instance.name }}-managed/plugins
+
+- name: Check shared platform plugin source directory
+  become: true
+  ansible.builtin.stat:
+    path: "{{ hermes_managed_platform_root }}/plugins"
+  register: hermes_platform_plugins_source
+
+- name: Verify shared platform plugin source directory
+  ansible.builtin.assert:
+    that:
+      - hermes_platform_plugins_source.stat.exists
+      - hermes_platform_plugins_source.stat.isdir
+    fail_msg: >-
+      Shared platform plugin source directory is missing or is not a directory:
+      {{ hermes_managed_platform_root }}/plugins
+
+- name: Check Hermes runtime plugin directory
+  become: true
+  ansible.builtin.stat:
+    path: "{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins"
+    follow: false
+  register: hermes_runtime_plugins_directory
+
+- name: Verify Hermes runtime plugin directory is safe to use
+  ansible.builtin.assert:
+    that:
+      - >-
+        not hermes_runtime_plugins_directory.stat.exists or
+        (
+          (hermes_runtime_plugins_directory.stat.isdir | default(false)) and
+          not (hermes_runtime_plugins_directory.stat.islnk | default(false))
+        )
+    fail_msg: >-
+      Hermes runtime plugin path must be absent or a real directory:
+      {{ hermes_data_root }}/{{ hermes_instance.name }}/plugins
+
+- name: Create Hermes runtime plugin directory when absent
+  become: true
+  ansible.builtin.file:
+    path: "{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: "0700"
+  when: not hermes_runtime_plugins_directory.stat.exists
+
+- name: Check Hermes plugin category link destinations
+  become: true
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+    follow: false
+  loop:
+    - name: pomo
+      dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins/pomo"
+      src: "/mnt/hermes/{{ hermes_instance.name }}/plugins"
+    - name: platform
+      dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}/plugins/platform"
+      src: "/mnt/hermes/platform/plugins"
+  loop_control:
+    label: "{{ item.name }}"
+  register: hermes_plugin_category_destinations
+
+- name: Verify Hermes plugin category link destinations
+  ansible.builtin.assert:
+    that:
+      - >-
+        not item.stat.exists or
+        (
+          (item.stat.islnk | default(false)) and
+          item.stat.lnk_source == item.item.src
+        )
+    fail_msg: >-
+      Plugin category destination {{ item.item.dest }} already exists and is
+      not the expected symlink to {{ item.item.src }}. It was not changed.
+  loop: "{{ hermes_plugin_category_destinations.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Create Hermes plugin category links
+  become: true
+  become_user: "{{ hermes_user }}"
+  ansible.builtin.command:
+    argv:
+      - ln
+      - -s
+      - "{{ item.item.src }}"
+      - "{{ item.item.dest }}"
+  loop: "{{ hermes_plugin_category_destinations.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists

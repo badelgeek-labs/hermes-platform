@@ -12,6 +12,9 @@ services:
     environment:
       HERMES_UID: "{{ hermes_runtime_uid | mandatory }}"
       HERMES_GID: "{{ hermes_runtime_gid | mandatory }}"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "/mnt/hermes/{{ hermes_instance.name }}"
     volumes:
       - "/var/lib/hermes/{{ hermes_instance.name }}:/opt/data"
       - "{{ hermes_managed_platform_root }}:/mnt/hermes/platform:ro"

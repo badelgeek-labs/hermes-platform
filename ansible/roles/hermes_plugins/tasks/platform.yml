@@ -1,4 +1,24 @@
 ---
+- name: Create shared Hermes platform README when absent
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/templates/hermes-platform-README.md'
+    dest: '{{ hermes_managed_platform_root }}/README.md'
+    owner: '{{ hermes_user }}'
+    group: '{{ hermes_group }}'
+    mode: '0644'
+    force: false
+  become: true
+
+- name: Create shared Hermes platform agent instructions when absent
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/templates/hermes-platform-AGENTS.md'
+    dest: '{{ hermes_managed_platform_root }}/AGENTS.md'
+    owner: '{{ hermes_user }}'
+    group: '{{ hermes_group }}'
+    mode: '0644'
+    force: false
+  become: true
+
 - name: Install shared Discord forum-post plugin files
   ansible.builtin.copy:
     src: '{{ playbook_dir }}/../hermes_plugins/discord_forum_posts/'

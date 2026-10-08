@@ -2,6 +2,12 @@
 - name: Copy shared Hermes platform plugin references
   ansible.builtin.include_tasks: platform.yml
 
+- name: Manage Hermes plugin category links for each instance
+  ansible.builtin.include_tasks: links.yml
+  loop: "{{ hermes_instances }}"
+  loop_control:
+    loop_var: hermes_instance
+
 - name: Deploy Hermes plugins for each instance
   ansible.builtin.include_tasks: instance.yml
   loop: "{{ hermes_instances }}"

@@ -113,12 +113,16 @@ Pour chaque `name`, le rôle crée l'arborescence suivante :
 ```
 
 Le répertoire platform contient les copies partagées des plugins de ce dépôt
-sous `platform/plugins/`. Pour chaque instance, `-managed/` contient les
+sous `platform/plugins/`, ainsi que ses propres `README.md` et `AGENTS.md`.
+Ces documents indiquent à Hermes que platform est une référence en lecture
+seule qu'il ne doit pas gérer. Pour chaque instance, `-managed/` contient les
 répertoires `config`, `skills`, `plugins`, `workflows`, `scripts`, `templates`
 et `tests`, ainsi que `README.md` et `AGENTS.md`. Il est monté en lecture-
 écriture dans le conteneur sous `/mnt/hermes/<name>`; platform reste en lecture
 seule. Les plugins runtime existants restent sous `/opt/data/plugins`; Ansible
-ne crée, ne copie ni ne supprime leur contenu.
+ne crée, ne copie ni ne supprime leur contenu. Il crée seulement les liens de
+catégorie `/opt/data/plugins/pomo` vers `/mnt/hermes/<name>/plugins` et
+`/opt/data/plugins/platform` vers `/mnt/hermes/platform/plugins`.
 
 Le répertoire de plateforme est géré par Ansible avec les privilèges élevés.
 Le compte système `hermes`, sans accès SSH ni sudo, possède les espaces de
@@ -177,6 +181,11 @@ sudo -u hermes git -C /var/lib/hermes/<name>-managed remote -v
 ```
 
 La dernière commande ne doit afficher aucune remote par défaut.
+
+Le Compose déclare aussi `/mnt/hermes/<name>` comme `safe.directory` Git. Cela
+permet aux processus exécutés en `root` dans le conteneur de consulter le dépôt
+qui appartient à l'utilisateur `hermes`, sans élargir la confiance aux autres
+répertoires.
 
 ## Exécution du playbook
 

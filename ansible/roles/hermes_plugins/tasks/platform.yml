@@ -1,0 +1,18 @@
+---
+- name: Install shared Discord forum-post plugin files
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/../hermes_plugins/discord_forum_posts/'
+    dest: '{{ hermes_managed_platform_root }}/plugins/discord-forum-posts/'
+    owner: '{{ hermes_user }}'
+    group: '{{ hermes_group }}'
+    mode: preserve
+  become: true
+
+- name: Install shared Discord UI plugin files
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/../hermes_plugins/discord_ui/'
+    dest: '{{ hermes_managed_platform_root }}/plugins/discord-ui/'
+    owner: '{{ hermes_user }}'
+    group: '{{ hermes_group }}'
+    mode: preserve
+  become: true

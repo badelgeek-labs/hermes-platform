@@ -112,6 +112,13 @@ Pour chaque `name`, le rôle crée l'arborescence suivante :
 /var/backups/hermes/<name>/  # sauvegardes, propriétaire : hermes:hermes
 ```
 
+Le répertoire platform contient les copies partagées des plugins de ce dépôt
+sous `platform/plugins/`. Pour chaque instance, `-managed/` contient les
+répertoires `config`, `skills`, `plugins`, `workflows`, `scripts`, `templates`
+et `tests`, ainsi que `README.md` et `AGENTS.md`. Il est monté en lecture-
+écriture dans le conteneur sous `/mnt/hermes/<name>`; platform reste en lecture
+seule. Les plugins runtime existants restent sous `/opt/data/plugins`.
+
 Le répertoire de plateforme est géré par Ansible avec les privilèges élevés.
 Le compte système `hermes`, sans accès SSH ni sudo, possède les espaces de
 données, composants et sauvegardes. Le dépôt Git local de

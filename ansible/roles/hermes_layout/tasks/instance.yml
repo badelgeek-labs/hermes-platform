@@ -20,6 +20,34 @@
       owner: "{{ hermes_user }}"
       group: "{{ hermes_group }}"
       mode: "0700"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/config"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0750"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/skills"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0750"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/plugins"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0750"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/workflows"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0750"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/scripts"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0750"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/templates"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0750"
+    - path: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/tests"
+      owner: "{{ hermes_user }}"
+      group: "{{ hermes_group }}"
+      mode: "0750"
     - path: "{{ hermes_backups_root }}/{{ hermes_instance.name }}"
       owner: "{{ hermes_user }}"
       group: "{{ hermes_group }}"
@@ -62,3 +90,41 @@
     mode: "0644"
     force: false
   when: hermes_managed_repository_init is changed
+
+- name: Create Hermes managed README when absent
+  become: true
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/templates/hermes-managed-README.md"
+    dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/README.md"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: "0644"
+    force: false
+
+- name: Create Hermes managed agent instructions when absent
+  become: true
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/templates/hermes-managed-AGENTS.md"
+    dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/AGENTS.md"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: "0644"
+    force: false
+
+- name: Keep Hermes managed directories in Git when empty
+  become: true
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ hermes_data_root }}/{{ hermes_instance.name }}-managed/{{ item }}/.gitkeep"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: "0644"
+    force: false
+  loop:
+    - config
+    - skills
+    - plugins
+    - workflows
+    - scripts
+    - templates
+    - tests

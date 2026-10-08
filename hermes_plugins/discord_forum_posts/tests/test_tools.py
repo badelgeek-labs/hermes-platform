@@ -51,41 +51,54 @@ class FakeClient(DiscordForumPostsClient):
 
 
 class FakeResponse:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str] | None = None) -> None:
         self.messages: list[tuple[str, bool]] = []
+        self.deferred: list[tuple[bool, bool]] = []
+        self.events = events
 
     async def send_message(self, content: str, *, ephemeral: bool) -> None:
         self.messages.append((content, ephemeral))
 
+    async def defer(self, *, ephemeral: bool, thinking: bool) -> None:
+        self.deferred.append((ephemeral, thinking))
+        if self.events is not None:
+            self.events.append("defer")
+
 
 class FakeContext:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str] | None = None) -> None:
         self.injected: list[tuple[str, str]] = []
+        self.events = events
 
     def inject_message(self, content: str, *, session_key: str) -> bool:
         self.injected.append((content, session_key))
+        if self.events is not None:
+            self.events.append("inject")
         return True
 
 
 class FakeAsyncSessionStore:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str] | None = None) -> None:
         self.calls: list[tuple[object, bool]] = []
+        self.events = events
 
     async def get_or_create_session(
         self, source: object, *, touch_activity: bool
     ) -> object:
         self.calls.append((source, touch_activity))
+        if self.events is not None:
+            self.events.append("session")
         return type("Session", (), {"session_key": "test-session"})()
 
 
 class FakeGatewayRunner:
-    def __init__(self) -> None:
-        self.async_session_store = FakeAsyncSessionStore()
+    def __init__(self, events: list[str] | None = None) -> None:
+        self.async_session_store = FakeAsyncSessionStore(events)
 
 
 class FakeAdapter:
-    def __init__(self) -> None:
-        self.gateway_runner = FakeGatewayRunner()
+    def __init__(self, events: list[str] | None = None) -> None:
+        self.gateway_runner = FakeGatewayRunner(events)
         self.source: dict[str, object] | None = None
 
     def build_source(self, **kwargs: object) -> object:
@@ -103,7 +116,12 @@ class FakeBot:
         self.event_name = event_name
 
 
-def fake_interaction(*, actor_id: int = 123, custom_id: str | None = None) -> object:
+def fake_interaction(
+    *,
+    actor_id: int = 123,
+    custom_id: str | None = None,
+    events: list[str] | None = None,
+) -> object:
     custom_id = "hermes-forum-posts:v1:shorter" if custom_id is None else custom_id
     button = type(
         "Button",
@@ -113,6 +131,10 @@ def fake_interaction(*, actor_id: int = 123, custom_id: str | None = None) -> ob
     author = type("Author", (), {"id": 999})()
     message = type("Message", (), {"author": author, "components": [row]})()
     user = type("User", (), {"id": actor_id, "display_name": "Ame"})()
+
+    async def edit_original_response(self: object, *, content: str) -> None:
+        self.edited_messages.append(content)
+
     return type(
         "Interaction",
         (),
@@ -123,7 +145,9 @@ def fake_interaction(*, actor_id: int = 123, custom_id: str | None = None) -> ob
             "channel_id": 456,
             "channel": type("Channel", (), {"name": "Review", "parent_id": 789})(),
             "guild_id": 321,
-            "response": FakeResponse(),
+            "response": FakeResponse(events),
+            "edited_messages": [],
+            "edit_original_response": edit_original_response,
         },
     )()
 
@@ -446,10 +470,11 @@ class DiscordForumPostsClientTests(unittest.TestCase):
         self.assertEqual(client.requests[-1], ("DELETE", "/channels/200", None))
 
     def test_button_click_injects_a_descriptive_action_event(self) -> None:
-        context = FakeContext()
+        events: list[str] = []
+        context = FakeContext(events)
         bot = FakeBot()
-        adapter = FakeAdapter()
-        interaction = fake_interaction()
+        adapter = FakeAdapter(events)
+        interaction = fake_interaction(events=events)
 
         with patch.dict("os.environ", {"DISCORD_ALLOWED_USERS": "123"}, clear=False):
             _wire_discord_component_actions(context, bot, adapter)
@@ -469,7 +494,9 @@ class DiscordForumPostsClientTests(unittest.TestCase):
                 )
             ],
         )
-        self.assertEqual(interaction.response.messages, [("Action received.", True)])
+        self.assertEqual(interaction.response.deferred, [(True, True)])
+        self.assertEqual(interaction.edited_messages, ["Action transmise"])
+        self.assertEqual(events, ["defer", "session", "inject"])
         self.assertEqual(adapter.source["chat_id"], "456")
         self.assertEqual(adapter.source["thread_id"], "456")
         self.assertEqual(adapter.source["parent_chat_id"], "789")

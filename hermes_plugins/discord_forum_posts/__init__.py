@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Any
 
 from .tools import (
@@ -97,49 +98,91 @@ def _wire_discord_component_actions(ctx: Any, bot: Any, adapter: Any) -> None:
             return
 
         action_id = custom_id.removeprefix(ACTION_CUSTOM_ID_PREFIX)
+        acknowledgement_started = time.perf_counter()
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except Exception:
+            logger.exception(
+                "Failed to acknowledge Discord forum action %s after %.3fs",
+                action_id,
+                time.perf_counter() - acknowledgement_started,
+            )
+            return
+        logger.info(
+            "Acknowledged Discord forum action %s in %.3fs",
+            action_id,
+            time.perf_counter() - acknowledgement_started,
+        )
+
         message_author = getattr(getattr(interaction, "message", None), "author", None)
         if (
             message_author is None
             or getattr(bot, "user", None) is None
             or getattr(message_author, "id", None) != getattr(bot.user, "id", None)
         ):
-            await interaction.response.send_message(
-                "This action is not managed by this Hermes bot.", ephemeral=True
+            await interaction.edit_original_response(
+                content="This action is not managed by this Hermes bot."
             )
             return
 
         actor_id = str(interaction.user.id)
         if actor_id not in _allowed_user_ids():
-            await interaction.response.send_message(
-                "You are not authorized to use this action.", ephemeral=True
+            await interaction.edit_original_response(
+                content="You are not authorized to use this action."
             )
             return
 
         action_label = _action_label(interaction, custom_id)
         if not action_label:
-            await interaction.response.send_message(
-                "The action label could not be read.", ephemeral=True
+            await interaction.edit_original_response(
+                content="The action label could not be read."
             )
             return
 
+        session_lookup_started = time.perf_counter()
         try:
             session_key = await _session_key_for_forum_post(adapter, interaction)
-            accepted = ctx.inject_message(
-                _component_action_event(
-                    action_id=action_id,
-                    action_label=action_label,
-                    thread_id=str(interaction.channel_id),
-                    actor_id=actor_id,
-                ),
-                session_key=session_key,
-            )
         except Exception:
-            logger.exception("Failed to inject Discord forum action %s", action_id)
+            logger.exception(
+                "Failed to find a Hermes session for Discord forum action %s after %.3fs",
+                action_id,
+                time.perf_counter() - session_lookup_started,
+            )
             accepted = False
+        else:
+            logger.info(
+                "Found Hermes session for Discord forum action %s in %.3fs",
+                action_id,
+                time.perf_counter() - session_lookup_started,
+            )
+            injection_started = time.perf_counter()
+            try:
+                accepted = ctx.inject_message(
+                    _component_action_event(
+                        action_id=action_id,
+                        action_label=action_label,
+                        thread_id=str(interaction.channel_id),
+                        actor_id=actor_id,
+                    ),
+                    session_key=session_key,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to inject Discord forum action %s after %.3fs",
+                    action_id,
+                    time.perf_counter() - injection_started,
+                )
+                accepted = False
+            else:
+                logger.info(
+                    "Injected Discord forum action %s in %.3fs (accepted=%s)",
+                    action_id,
+                    time.perf_counter() - injection_started,
+                    accepted,
+                )
 
-        await interaction.response.send_message(
-            "Action received." if accepted else "The action could not be delivered.",
-            ephemeral=True,
+        await interaction.edit_original_response(
+            content="Action transmise" if accepted else "The action could not be delivered."
         )
 
     bot.add_listener(on_interaction, "on_interaction")

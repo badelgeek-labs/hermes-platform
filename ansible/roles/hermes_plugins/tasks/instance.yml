@@ -192,7 +192,7 @@
   become: true
   when: hermes_plugins_changed
 
-- name: Verify required Discord plugins are enabled
+- name: Verify required Discord plugin manifests are enabled
   ansible.builtin.command:
     argv:
       - docker
@@ -211,5 +211,5 @@
   changed_when: false
   register: hermes_plugins_list
   failed_when: >-
-    'platform/discord-forum-posts' not in hermes_plugins_list.stdout or
-    'platform/discord-ui' not in hermes_plugins_list.stdout
+    'discord-forum-posts' not in hermes_plugins_list.stdout or
+    'discord-ui' not in hermes_plugins_list.stdout
